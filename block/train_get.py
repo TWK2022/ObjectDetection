@@ -20,7 +20,7 @@ def train_get(args, data_dict, model_dict, loss):
                                                  batch_size=args.batch, shuffle=True, drop_last=True,
                                                  pin_memory=args.latch)
         for item, (image_batch, true_batch, judge_batch) in enumerate(tqdm.tqdm(dataloader)):
-            image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到GPU上
+            image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到设备上
             for i in range(len(true_batch)):  # 将标签矩阵放到对应设备上
                 true_batch[i] = true_batch[i].to(args.device, non_blocking=args.latch)
             pred_batch = model(image_batch)
@@ -44,7 +44,7 @@ def train_get(args, data_dict, model_dict, loss):
               .format(len(data_dict['train']), item + 1, train_loss, train_frame_loss, train_confidence_loss,
                       train_class_loss))
         # 清理显存空间
-        del image_batch, true_batch, pred_batch, loss_batch
+        del image_batch, true_batch, pred_batch, judge_batch, loss_batch
         torch.cuda.empty_cache()
         # 验证
         val_loss, val_frame_loss, val_confidence_loss, val_class_loss, accuracy, precision, recall, m_ap = \
