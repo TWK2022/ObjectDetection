@@ -16,6 +16,7 @@ parser.add_argument('--batch', default=1, type=int, help='|输入图片批量|')
 parser.add_argument('--confidence_threshold', default=0.8, type=float, help='|置信筛选度阈值(>阈值留下)|')
 parser.add_argument('--iou_threshold', default=0.65, type=float, help='|iou阈值筛选阈值(>阈值留下)|')
 parser.add_argument('--device', default='cuda', type=str, help='|用CPU/GPU推理|')
+parser.add_argument('--num_worker', default=0, type=int, help='|CPU在处理数据时使用的进程数，0表示只有一个主进程，一般为0、2、4、8|')
 parser.add_argument('--float16', default=True, type=bool, help='|推理数据类型，要支持float16的GPU，False时为float32|')
 args = parser.parse_args()
 args.model_path = args.model_path.split('.')[0] + '.pt'
@@ -87,7 +88,8 @@ def test_pt():
     start_time = time.time()
     with torch.no_grad():
         dataloader = torch.utils.data.DataLoader(torch_dataset(image_dir), batch_size=args.batch,
-                                                 shuffle=False, drop_last=False, pin_memory=False)
+                                                 shuffle=False, drop_last=False, pin_memory=False,
+                                                 num_workers=args.num_worker)
         for item, (image_batch, name_batch) in enumerate(dataloader):
             image_all = image_batch.cpu().numpy().astype(np.uint8)  # 转为numpy，用于画图
             image_batch = image_batch.to(args.device)

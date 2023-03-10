@@ -17,7 +17,8 @@ def val_get(args, data_dict, model, loss):
         fp_all = 0
         fn_all = 0
         dataloader = torch.utils.data.DataLoader(torch_dataset(args, data_dict['val']), batch_size=args.batch,
-                                                 shuffle=False, drop_last=False, pin_memory=args.latch)
+                                                 shuffle=False, drop_last=False, pin_memory=args.latch,
+                                                 num_workers=args.num_worker)
         for item, (image_batch, true_batch, judge_batch) in enumerate(tqdm.tqdm(dataloader)):
             image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到GPU上
             for i in range(len(true_batch)):  # 将标签矩阵放到对应设备上

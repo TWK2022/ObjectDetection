@@ -18,7 +18,7 @@ def train_get(args, data_dict, model_dict, loss):
         train_class_loss = 0  # 记录类别损失
         dataloader = torch.utils.data.DataLoader(torch_dataset(args, data_dict['train']),
                                                  batch_size=args.batch, shuffle=True, drop_last=True,
-                                                 pin_memory=args.latch)
+                                                 pin_memory=args.latch, num_workers=args.num_worker)
         for item, (image_batch, true_batch, judge_batch) in enumerate(tqdm.tqdm(dataloader)):
             image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到设备上
             for i in range(len(true_batch)):  # 将标签矩阵放到对应设备上
