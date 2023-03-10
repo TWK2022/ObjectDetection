@@ -82,7 +82,7 @@ def train_get(args, data_dict, model_dict, loss):
                                 'val/val_accuracy': accuracy,
                                 'val/val_precision': precision,
                                 'val/val_recall': recall,
-                                'val_m_ap': m_ap})
+                                'val/val_m_ap': m_ap})
     return model_dict
 
 
