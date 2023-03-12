@@ -43,8 +43,6 @@ parser.add_argument('--num_worker', default=0, type=int, help='|CPU在处理数�
 parser.add_argument('--confidence_threshold', default=0.5, type=float, help='|指标计算置信度阈值|')
 parser.add_argument('--iou_threshold', default=0.5, type=float, help='|指标计算iou阈值|')
 args = parser.parse_args()
-args.weight = args.weight.split('.')[0] + '.pt'
-args.save_name = args.save_name.split('.')[0] + '.pt'
 # 为CPU设置随机种子
 torch.manual_seed(999)
 # 为所有GPU设置随机种子
