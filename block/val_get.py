@@ -1,7 +1,5 @@
-import cv2
 import tqdm
 import torch
-import numpy as np
 from block.metric_get import acc_pre_rec_ap
 
 
