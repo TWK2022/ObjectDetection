@@ -55,7 +55,7 @@ class yolov5(torch.nn.Module):
         self.output1 = head(8 * dim, 3 * (5 + self.output_class))
         self.output2 = head(16 * dim, 3 * (5 + self.output_class))
 
-    def decode(self, output):  # 将网络输出坐标解码为真实坐标
+    def decode(self, output):  # 将网络输出坐标解码为真实坐标(Cx,Cy,w,h)
         device = output[0].device
         # 遍历每一个大层
         for i in range(3):
