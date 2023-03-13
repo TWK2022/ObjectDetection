@@ -1,25 +1,29 @@
 import cv2
 import tqdm
+import wandb
 import torch
 import numpy as np
 from block.val_get import val_get
 
 
 def train_get(args, data_dict, model_dict, loss):
-    model = model_dict['model']
+    model = model_dict['model'].to(args.device, non_blocking=args.latch)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    train_dataloader = torch.utils.data.DataLoader(torch_dataset(args, data_dict['train'], data_dict['class'], 'train'),
+                                                   batch_size=args.batch, shuffle=True, drop_last=True,
+                                                   pin_memory=args.latch, num_workers=args.num_worker)
+    val_dataloader = torch.utils.data.DataLoader(torch_dataset(args, data_dict['val'], data_dict['class'], 'val'),
+                                                 batch_size=args.batch, shuffle=False, drop_last=False,
+                                                 pin_memory=args.latch, num_workers=args.num_worker)
     for epoch in range(args.epoch):
         # 训练
         print(f'\n-----------------------第{epoch + 1}轮-----------------------')
-        model.train().to(args.device, non_blocking=args.latch)
+        model.train()
         train_loss = 0  # 记录训练损失
         train_frame_loss = 0  # 记录边框损失
         train_confidence_loss = 0  # 记录置信度框损失
         train_class_loss = 0  # 记录类别损失
-        dataloader = torch.utils.data.DataLoader(torch_dataset(args, data_dict['train']),
-                                                 batch_size=args.batch, shuffle=True, drop_last=True,
-                                                 pin_memory=args.latch, num_workers=args.num_worker)
-        for item, (image_batch, true_batch, judge_batch) in enumerate(tqdm.tqdm(dataloader)):
+        for item, (image_batch, true_batch, judge_batch) in enumerate(tqdm.tqdm(train_dataloader)):
             image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到设备上
             for i in range(len(true_batch)):  # 将标签矩阵放到对应设备上
                 true_batch[i] = true_batch[i].to(args.device, non_blocking=args.latch)
@@ -39,16 +43,15 @@ def train_get(args, data_dict, model_dict, loss):
         train_frame_loss = train_frame_loss / (item + 1)
         train_confidence_loss = train_confidence_loss / (item + 1)
         train_class_loss = train_class_loss / (item + 1)
-        print('\n| 训练集:{} | 轮次:{} | train_loss:{:.4f} | train_frame_loss:{:.4f} | train_confidence_loss:{:.4f} |'
+        print('\n| 轮次:{} | train_loss:{:.4f} | train_frame_loss:{:.4f} | train_confidence_loss:{:.4f} |'
               ' train_class_loss:{:.4f} |\n'
-              .format(len(data_dict['train']), item + 1, train_loss, train_frame_loss, train_confidence_loss,
-                      train_class_loss))
+              .format(item + 1, train_loss, train_frame_loss, train_confidence_loss, train_class_loss))
         # 清理显存空间
         del image_batch, true_batch, pred_batch, judge_batch, loss_batch
         torch.cuda.empty_cache()
         # 验证
         val_loss, val_frame_loss, val_confidence_loss, val_class_loss, accuracy, precision, recall, m_ap = \
-            val_get(args, data_dict, model, loss)
+            val_get(args, val_dataloader, model, loss)
         # 保存
         if m_ap > 0.25 and m_ap > model_dict['val_m_ap']:
             model_dict['model'] = model
@@ -75,19 +78,19 @@ def train_get(args, data_dict, model_dict, loss):
                                 'train/train_frame_loss': train_frame_loss,
                                 'train/train_confidence_loss': train_confidence_loss,
                                 'train/train_class_loss': train_class_loss,
-                                'val/val_loss': val_loss,
-                                'val/val_frame_loss': val_frame_loss,
-                                'val/val_confidence_loss': val_confidence_loss,
-                                'val/val_class_loss': val_class_loss,
-                                'val/val_accuracy': accuracy,
-                                'val/val_precision': precision,
-                                'val/val_recall': recall,
-                                'val/val_m_ap': m_ap})
+                                'val_loss/val_loss': val_loss,
+                                'val_loss/val_frame_loss': val_frame_loss,
+                                'val_loss/val_confidence_loss': val_confidence_loss,
+                                'val_loss/val_class_loss': val_class_loss,
+                                'val_metric/val_accuracy': accuracy,
+                                'val_metric/val_precision': precision,
+                                'val_metric/val_recall': recall,
+                                'val_metric/val_m_ap': m_ap})
     return model_dict
 
 
 class torch_dataset(torch.utils.data.Dataset):
-    def __init__(self, args, data):
+    def __init__(self, args, data, class_name, wandb_tag):
         output_num_dict = {'yolov5': (3, 3, 3),
                            'yolov7': (3, 3, 3)
                            }  # 输出层数量，如(3, 3, 3)代表有三个大层，每层有三个小层
@@ -110,6 +113,12 @@ class torch_dataset(torch.utils.data.Dataset):
         self.label_smooth = args.label_smooth  # 标签平滑，如(0.05,0.95)
         self.output_size = [int(self.input_size // i) for i in self.stride]  # 每个输出层的尺寸，如(80,40,20)
         self.data = data
+        # wandb可视化部分
+        self.class_name = class_name
+        self.wandb = args.wandb
+        self.wandb_run = args.wandb_run
+        self.wandb_num = 0  # 用于限制添加的图片数量(最多添加20张)
+        self.wandb_tag = wandb_tag  # 用于wandb中区分图片是训练集还是测试集
 
     def __len__(self):
         return len(self.data)
@@ -172,6 +181,22 @@ class torch_dataset(torch.utils.data.Dataset):
             # 存放每个输出层的结果
             label_list[i] = label_matrix
             judge_list[i] = judge_matrix
+        # 使用wandb添加图片
+        if self.wandb and self.wandb_num < 20:
+            box_data = []
+            cls_num = torch.argmax(cls, dim=1)
+            frame[:, 0:2] = frame[:, 0:2] - 1 / 2 * frame[:, 2:4]
+            frame[:, 2:4] = frame[:, 0:2] + frame[:, 2:4]
+            for i in range(len(frame)):
+                class_id = cls_num[i]
+                box_data.append({"position": {"minX": frame[i][0].item() / self.input_size,
+                                              "minY": frame[i][1].item() / self.input_size,
+                                              "maxX": frame[i][2].item() / self.input_size,
+                                              "maxY": frame[i][3].item() / self.input_size},
+                                 "class_id": class_id.item(), "box_caption": self.class_name[class_id]})
+            wandb_image = wandb.Image(np.array(image, dtype=np.uint8), boxes={"predictions": {"box_data": box_data}})
+            self.wandb_run.log({f'image/{self.wandb_tag}_image': wandb_image})
+            self.wandb_num += 1
         return image, label_list, judge_list
 
     def _resize(self, image, frame):  # 将图片四周填充变为正方形，frame输入输出都为[[Cx,Cy,w,h]...](相对原图片的比例值)
