@@ -54,6 +54,7 @@ class yolov5(torch.nn.Module):
         self.output0 = head(4 * dim, 3 * (5 + self.output_class))
         self.output1 = head(8 * dim, 3 * (5 + self.output_class))
         self.output2 = head(16 * dim, 3 * (5 + self.output_class))
+        self.decode = decode
 
     def forward(self, x):
         # 输入(batch,640,640,3)
