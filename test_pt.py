@@ -65,10 +65,10 @@ def nms(pred, iou_threshold):
     return np.stack(result, axis=0)
 
 
-def draw(image, frame, cls, name):
+def draw(image, frame, cls, name):  # 输入(x_min,y_min,w,h)
     for i in range(len(frame)):
-        a = (int(frame[i][0] - frame[i][2] / 2), int(frame[i][1] - frame[i][3] / 2))
-        b = (int(frame[i][0] + frame[i][2] / 2), int(frame[i][1] + frame[i][3] / 2))
+        a = (int(frame[i][0]), int(frame[i][1]))
+        b = (int(frame[i][0] + frame[i][2]), int(frame[i][1] + frame[i][3]))
         cv2.rectangle(image, a, b, color=(0, 255, 0), thickness=2)
         cv2.putText(image, 'class:' + str(cls[i]), a, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
     cv2.imwrite('pred_' + name, image)
@@ -97,9 +97,9 @@ def test_pt():
             pred_batch = [pred_batch[i].cpu().numpy() for i in range(len(pred_batch))]  # 转为numpy
             # 对batch中的每张图片分别操作
             for i in range(args.batch):
-                pred = [pred_batch[j][i] for j in range(len(pred_batch))]
+                pred = [pred_batch[j][i] for j in range(len(pred_batch))]  # (Cx,Cy,w,h)
                 pred = confidence_screen(pred, args.confidence_threshold)  # 置信度筛选
-                pred[0:2] = pred[0:2] - 1 / 2 * pred[2:4]
+                pred[0:2] = pred[0:2] - 1 / 2 * pred[2:4]  # (x_min,y_min,w,h)
                 pred = nms(pred, args.iou_threshold)  # 非极大值抑制
                 frame = pred[:, 0:4]  # 边框
                 cls = np.argmax(pred[:, 5:], axis=1)  # 类别
