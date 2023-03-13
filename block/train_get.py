@@ -9,10 +9,10 @@ from block.val_get import val_get
 def train_get(args, data_dict, model_dict, loss):
     model = model_dict['model'].to(args.device, non_blocking=args.latch)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    train_dataloader = torch.utils.data.DataLoader(torch_dataset(args, data_dict['train'], data_dict['class'], 'train'),
+    train_dataloader = torch.utils.data.DataLoader(torch_dataset(args, 'train', data_dict['train'], data_dict['class']),
                                                    batch_size=args.batch, shuffle=True, drop_last=True,
                                                    pin_memory=args.latch, num_workers=args.num_worker)
-    val_dataloader = torch.utils.data.DataLoader(torch_dataset(args, data_dict['val'], data_dict['class'], 'val'),
+    val_dataloader = torch.utils.data.DataLoader(torch_dataset(args, 'val', data_dict['val'], data_dict['class']),
                                                  batch_size=args.batch, shuffle=False, drop_last=False,
                                                  pin_memory=args.latch, num_workers=args.num_worker)
     for epoch in range(args.epoch):
@@ -90,7 +90,7 @@ def train_get(args, data_dict, model_dict, loss):
 
 
 class torch_dataset(torch.utils.data.Dataset):
-    def __init__(self, args, data, class_name, wandb_tag):
+    def __init__(self, args, tag, data, class_name):
         output_num_dict = {'yolov5': (3, 3, 3),
                            'yolov7': (3, 3, 3)
                            }  # 输出层数量，如(3, 3, 3)代表有三个大层，每层有三个小层
@@ -112,13 +112,14 @@ class torch_dataset(torch.utils.data.Dataset):
         self.output_class = args.output_class  # 输出类别数
         self.label_smooth = args.label_smooth  # 标签平滑，如(0.05,0.95)
         self.output_size = [int(self.input_size // i) for i in self.stride]  # 每个输出层的尺寸，如(80,40,20)
+        self.tag = tag  # 用于区分是训练集还是验证集
         self.data = data
         # wandb可视化部分
-        self.class_name = class_name
-        self.wandb = args.wandb
-        self.wandb_run = args.wandb_run
-        self.wandb_num = 0  # 用于限制添加的图片数量(最多添加20张)
-        self.wandb_tag = wandb_tag  # 用于wandb中区分图片是训练集还是测试集
+        if args.wandb:
+            self.class_name = class_name
+            self.wandb = args.wandb
+            self.wandb_run = args.wandb_run
+            self.wandb_num = 0  # 用于限制添加的图片数量(最多添加20张)
 
     def __len__(self):
         return len(self.data)
@@ -195,7 +196,7 @@ class torch_dataset(torch.utils.data.Dataset):
                                               "maxY": frame[i][3].item() / self.input_size},
                                  "class_id": class_id.item(), "box_caption": self.class_name[class_id]})
             wandb_image = wandb.Image(np.array(image, dtype=np.uint8), boxes={"predictions": {"box_data": box_data}})
-            self.wandb_run.log({f'image/{self.wandb_tag}_image': wandb_image})
+            self.wandb_run.log({f'image/{self.tag}_image': wandb_image})
             self.wandb_num += 1
         return image, label_list, judge_list
 
