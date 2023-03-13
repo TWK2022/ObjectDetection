@@ -1,5 +1,5 @@
 import torch
-from model.layer import image_deal, cbs, elan, elan_h, mp, sppcspc, concat, head
+from model.layer import image_deal, cbs, elan, elan_h, mp, sppcspc, concat, head, decode
 
 
 class yolov7(torch.nn.Module):
@@ -58,20 +58,7 @@ class yolov7(torch.nn.Module):
         self.output0 = head(4 * dim, 3 * (5 + self.output_class))
         self.output1 = head(8 * dim, 3 * (5 + self.output_class))
         self.output2 = head(16 * dim, 3 * (5 + self.output_class))
-
-    def decode(self, output):  # 将网络输出坐标解码为真实坐标(Cx,Cy,w,h)
-        device = output[0].device
-        # 遍历每一个大层
-        for i in range(3):
-            self.grid[i] = self.grid[i].to(device)  # 放到对应的设备上
-            # 中心坐标[0-1]->[-0.5-1.5]->[-0.5*stride-20/40/80.5*stride]
-            output[i][..., 0] = (2 * output[i][..., 0] - 0.5 + self.grid[i].unsqueeze(1)) * self.stride[i]
-            output[i][..., 1] = (2 * output[i][..., 1] - 0.5 + self.grid[i]) * self.stride[i]
-            # 遍历每一个大层中的小层
-            for j in range(3):
-                output[i][:, j, ..., 2] = 4 * output[i][:, j, ..., 2] * self.anchor[i][j][0]  # 宽[0-1]->[0-4*anchor]
-                output[i][:, j, ..., 3] = 4 * output[i][:, j, ..., 3] * self.anchor[i][j][1]  # 高 [0-1]->[0-4*anchor]
-        return output
+        self.decode = decode(self.grid, self.stride, self.anchor)
 
     def forward(self, x):
         # 输入(batch,640,640,3)
@@ -113,9 +100,10 @@ class yolov7(torch.nn.Module):
         output = self.decode([output0, output1, output2])
         return output
 
+
 if __name__ == '__main__':
     import argparse
-    from layer import image_deal, cbs, elan, elan_h, mp, sppcspc, concat, head
+    from layer import image_deal, cbs, elan, elan_h, mp, sppcspc, concat, head, decode
 
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--model_type', default='n', type=str)
