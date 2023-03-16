@@ -37,6 +37,7 @@ def confidence_screen(pred, confidence_threshold):
         judge = np.where(pred[i][..., 4] > confidence_threshold, True, False)
         result.append((pred[i][judge]))
     result = np.concatenate(result, axis=0)
+    result = np.stack(sorted(list(result), key=lambda x: x[4], reverse=True))  # 按置信度排序
     return result
 
 
@@ -52,16 +53,15 @@ def iou(A, B):  # 输入为(batch,(x_min,y_min,w,h))
 
 
 def nms(pred, iou_threshold):
-    choose = np.stack(sorted(list(pred), key=lambda x: x[4], reverse=True))  # 待选择的预测值
     result = []
-    while len(choose) > 0:
-        result.append(choose[0])  # 每轮开始时添加第一个到结果中
-        choose = choose[1:]
-        if len(choose) > 0:
+    while len(pred) > 0:
+        result.append(pred[0])  # 每轮开始时添加第一个到结果中
+        pred = pred[1:]
+        if len(pred) > 0:
             target = result[-1]
-            iou_all = iou(choose, target)
+            iou_all = iou(pred, target)
             judge = np.where(iou_all < iou_threshold, True, False)
-            choose = choose[judge]
+            pred = pred[judge]
     return np.stack(result, axis=0)
 
 
