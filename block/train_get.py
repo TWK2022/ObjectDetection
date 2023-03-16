@@ -36,8 +36,13 @@ def train_get(args, data_dict, model_dict, loss):
             train_class_loss += class_loss.item()
             # 更新参数
             optimizer.zero_grad()
-            loss_batch.backward()
-            optimizer.step()
+            if args.scaler:
+                args.scaler.scale(loss_batch).backward()
+                args.scaler.step(optimizer)
+                args.scaler.update()
+            else:
+                loss_batch.backward()
+                optimizer.step()
         # 计算平均损失
         train_loss = train_loss / (item + 1)
         train_frame_loss = train_frame_loss / (item + 1)
@@ -115,9 +120,9 @@ class torch_dataset(torch.utils.data.Dataset):
         self.tag = tag  # 用于区分是训练集还是验证集
         self.data = data
         # wandb可视化部分
-        if args.wandb:
+        self.wandb = args.wandb
+        if self.wandb:
             self.class_name = class_name
-            self.wandb = args.wandb
             self.wandb_run = args.wandb_run
             self.wandb_num = 0  # 用于限制添加的图片数量(最多添加20张)
 

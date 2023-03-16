@@ -34,13 +34,14 @@ parser.add_argument('--input_size', default=640, type=int, help='|输入图片�
 parser.add_argument('--output_class', default=1, type=int, help='|输出的类别数|')
 parser.add_argument('--loss_weight', default=((1 / 3, 0.2, 0.6, 0.2), (1 / 3, 0.3, 0.5, 0.2), (1 / 3, 0.4, 0.4, 0.2)),
                     type=tuple, help='|每个输出层(从大到小排序)的权重->[总权重、边框权重、置信度权重、分类权重]|')
-parser.add_argument('--label_smooth', default=(0.05, 0.95), type=tuple, help='|标签平滑的值|')
+parser.add_argument('--label_smooth', default=(0.01, 0.99), type=tuple, help='|标签平滑的值|')
 parser.add_argument('--epoch', default=50, type=int, help='|训练轮数|')
 parser.add_argument('--batch', default=4, type=int, help='|训练批量大小|')
 parser.add_argument('--lr', default=0.002, type=int, help='|初始学习率，训练中采用adam算法|')
 parser.add_argument('--device', default='cuda', type=str, help='|训练设备|')
 parser.add_argument('--latch', default=True, type=bool, help='|模型和数据是否为锁存，True为锁存|')
 parser.add_argument('--num_worker', default=0, type=int, help='|CPU在处理数据时使用的进程数，0表示只有一个主进程，一般为0、2、4、8|')
+parser.add_argument('--scaler', default=True, type=bool, help='|混合float16精度训练|')
 parser.add_argument('--confidence_threshold', default=0.5, type=float, help='|指标计算置信度阈值|')
 parser.add_argument('--iou_threshold', default=0.5, type=float, help='|指标计算iou阈值|')
 args = parser.parse_args()
@@ -57,6 +58,9 @@ torch.backends.cudnn.benchmark = False
 # wandb可视化:https://wandb.ai
 if args.wandb:
     args.wandb_run = wandb.init(project=args.wandb_project, name=args.wandb_name, config=args)
+# 混合float16精度训练
+if args.scaler:
+    args.scaler = torch.cuda.amp.GradScaler()
 # -------------------------------------------------------------------------------------------------------------------- #
 # 初步检查
 assert os.path.exists(args.data_path + '/' + 'image'), 'data_path中缺少image'
