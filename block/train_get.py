@@ -52,7 +52,7 @@ def train_get(args, data_dict, model_dict, loss):
               ' train_class_loss:{:.4f} |\n'
               .format(item + 1, train_loss, train_frame_loss, train_confidence_loss, train_class_loss))
         # 清理显存空间
-        del image_batch, true_batch, pred_batch, judge_batch, loss_batch
+        del image_batch, true_batch, judge_batch, pred_batch, loss_batch
         torch.cuda.empty_cache()
         # 验证
         val_loss, val_frame_loss, val_confidence_loss, val_class_loss, accuracy, precision, recall, m_ap = \
