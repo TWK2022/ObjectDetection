@@ -194,12 +194,13 @@ class torch_dataset(torch.utils.data.Dataset):
             frame[:, 0:2] = frame[:, 0:2] - 1 / 2 * frame[:, 2:4]
             frame[:, 2:4] = frame[:, 0:2] + frame[:, 2:4]
             for i in range(len(frame)):
-                class_id = cls_num[i]
+                class_id = cls_num[i].item()
                 box_data.append({"position": {"minX": frame[i][0].item() / self.input_size,
                                               "minY": frame[i][1].item() / self.input_size,
                                               "maxX": frame[i][2].item() / self.input_size,
                                               "maxY": frame[i][3].item() / self.input_size},
-                                 "class_id": class_id.item(), "box_caption": self.class_name[class_id]})
+                                 "class_id": class_id,
+                                 "box_caption": self.class_name[class_id]})
             wandb_image = wandb.Image(np.array(image, dtype=np.uint8), boxes={"predictions": {"box_data": box_data}})
             self.wandb_run.log({f'image/{self.tag}_image': wandb_image})
             self.wandb_num += 1

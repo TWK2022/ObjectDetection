@@ -97,7 +97,7 @@ def test_pt():
             pred_batch = [pred_batch[i].cpu().numpy() for i in range(len(pred_batch))]  # 转为numpy
             # 对batch中的每张图片分别操作
             for i in range(args.batch):
-                pred = [pred_batch[j][i] for j in range(len(pred_batch))]  # (Cx,Cy,w,h)
+                pred = [_[i] for _ in pred_batch]  # (Cx,Cy,w,h)
                 pred = confidence_screen(pred, args.confidence_threshold)  # 置信度筛选
                 pred[0:2] = pred[0:2] - 1 / 2 * pred[2:4]  # (x_min,y_min,w,h)
                 pred = nms(pred, args.iou_threshold)  # 非极大值抑制
