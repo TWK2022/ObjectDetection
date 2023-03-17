@@ -186,19 +186,14 @@ class sppcspc(torch.nn.Module):  # in_->out_，len->len
 
 
 class head(torch.nn.Module):  # in_->out_，len->len
-    def __init__(self, in_, out_, output_class):
+    def __init__(self, in_, out_):
         super().__init__()
         self.output = torch.nn.Conv2d(in_, out_, kernel_size=1, stride=1, padding=0)
-        self.frame_confidence_nomorlization = torch.nn.Sigmoid()
-        if output_class == 1:
-            self.class_nomorlization = torch.nn.Sigmoid()
-        else:
-            self.class_nomorlization = torch.nn.Softmax(dim=1)
+        self.normalization = torch.nn.Sigmoid()
 
     def forward(self, x):
         x = self.output(x)
-        x[..., 0:5] = self.frame_confidence_nomorlization(x[..., 0:5])
-        x[..., 5:] = self.class_nomorlization(x[..., 5:])
+        x = self.normalization(x)
         return x
 
 
@@ -219,6 +214,6 @@ class decode(torch.nn.Module):  # 原始输出->真实坐标(Cx,Cy,w,h)
             output[i][..., 1] = (2 * output[i][..., 1] - 0.5 + self.grid[i]) * self.stride[i]
             # 遍历每一个大层中的小层
             for j in range(3):
-                output[i][:, j, ..., 2] = 4 * output[i][:, j, ..., 2] ** 2 * self.anchor[i][j][0]  # [0-1]->[0-4*anchor]
-                output[i][:, j, ..., 3] = 4 * output[i][:, j, ..., 3] ** 2 * self.anchor[i][j][1]  # [0-1]->[0-4*anchor]
+                output[i][:, j, ..., 2] = 4 * output[i][:, j, ..., 2] * self.anchor[i][j][0]  # [0-1]->[0-4*anchor]
+                output[i][:, j, ..., 3] = 4 * output[i][:, j, ..., 3] * self.anchor[i][j][1]  # [0-1]->[0-4*anchor]
         return output
