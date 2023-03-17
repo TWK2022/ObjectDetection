@@ -209,7 +209,7 @@ class decode(torch.nn.Module):  # 原始输出->真实坐标(Cx,Cy,w,h)
         # 遍历每一个大层
         for i in range(3):
             self.grid[i] = self.grid[i].to(device)  # 放到对应的设备上
-            # 中心坐标[0-1]->[-0.5-1.5]->[-0.5*stride-20/40/80.5*stride]
+            # 中心坐标[0-1]->[-0.5-1.5]->[-0.5*stride-80/40/20.5*stride]
             output[i][..., 0] = (2 * output[i][..., 0] - 0.5 + self.grid[i].unsqueeze(1)) * self.stride[i]
             output[i][..., 1] = (2 * output[i][..., 1] - 0.5 + self.grid[i]) * self.stride[i]
             # 遍历每一个大层中的小层
