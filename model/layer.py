@@ -214,6 +214,6 @@ class decode(torch.nn.Module):  # 原始输出->真实坐标(Cx,Cy,w,h)
             output[i][..., 1] = (2 * output[i][..., 1] - 0.5 + self.grid[i]) * self.stride[i]
             # 遍历每一个大层中的小层
             for j in range(3):
-                output[i][:, j, ..., 2] = 4 * output[i][:, j, ..., 2] * self.anchor[i][j][0]  # 宽[0-1]->[0-4*anchor]
-                output[i][:, j, ..., 3] = 4 * output[i][:, j, ..., 3] * self.anchor[i][j][1]  # 高 [0-1]->[0-4*anchor]
+                output[i][:, j, ..., 2] = 4 * output[i][:, j, ..., 2] ** 2 * self.anchor[i][j][0]  # [0-1]->[0-4*anchor]
+                output[i][:, j, ..., 3] = 4 * output[i][:, j, ..., 3] ** 2 * self.anchor[i][j][1]  # [0-1]->[0-4*anchor]
         return output
