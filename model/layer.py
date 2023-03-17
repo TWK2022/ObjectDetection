@@ -186,14 +186,19 @@ class sppcspc(torch.nn.Module):  # in_->out_，len->len
 
 
 class head(torch.nn.Module):  # in_->out_，len->len
-    def __init__(self, in_, out_):
+    def __init__(self, in_, out_, output_class):
         super().__init__()
         self.output = torch.nn.Conv2d(in_, out_, kernel_size=1, stride=1, padding=0)
-        self.normalization = torch.nn.Sigmoid()
+        self.frame_confidence_nomorlization = torch.nn.Sigmoid()
+        if output_class == 1:
+            self.class_nomorlization = torch.nn.Sigmoid()
+        else:
+            self.class_nomorlization = torch.nn.Softmax(dim=1)
 
     def forward(self, x):
         x = self.output(x)
-        x = self.normalization(x)
+        x[..., 0:5] = self.frame_confidence_nomorlization(x[..., 0:5])
+        x[..., 5:] = self.class_nomorlization(x[..., 5:])
         return x
 
 

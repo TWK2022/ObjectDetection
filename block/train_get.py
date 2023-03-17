@@ -27,22 +27,25 @@ def train_get(args, data_dict, model_dict, loss):
             image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到设备上
             for i in range(len(true_batch)):  # 将标签矩阵放到对应设备上
                 true_batch[i] = true_batch[i].to(args.device, non_blocking=args.latch)
-            pred_batch = model(image_batch)
-            # 计算损失
-            loss_batch, frame_loss, confidence_loss, class_loss = loss(pred_batch, true_batch, judge_batch)
+            if args.scaler:
+                with torch.cuda.amp.autocast():
+                    pred_batch = model(image_batch)
+                    loss_batch, frame_loss, confidence_loss, class_loss = loss(pred_batch, true_batch, judge_batch)
+                    optimizer.zero_grad()
+                    args.scaler.scale(loss_batch).backward()
+                    args.scaler.step(optimizer)
+                    args.scaler.update()
+            else:
+                pred_batch = model(image_batch)
+                loss_batch, frame_loss, confidence_loss, class_loss = loss(pred_batch, true_batch, judge_batch)
+                optimizer.zero_grad()
+                loss_batch.backward()
+                optimizer.step()
+            # 计录损失
             train_loss += loss_batch.item()
             train_frame_loss += frame_loss.item()
             train_confidence_loss += confidence_loss.item()
             train_class_loss += class_loss.item()
-            # 更新参数
-            optimizer.zero_grad()
-            if args.scaler:
-                args.scaler.scale(loss_batch).backward()
-                args.scaler.step(optimizer)
-                args.scaler.update()
-            else:
-                loss_batch.backward()
-                optimizer.step()
         # 计算平均损失
         train_loss = train_loss / (item + 1)
         train_frame_loss = train_frame_loss / (item + 1)
