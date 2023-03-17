@@ -12,7 +12,7 @@ def iou(pred, true):  # 输入为(batch,(x_min,y_min,w,h))
     return intersection / union
 
 
-def acc_pre_rec_ap(pred, true, judge, confidence_threshold, iou_threshold):  # 对网络输出(单个/批量)求非极大值抑制前的指标
+def tp_tn_fp_fn(pred, true, judge, confidence_threshold, iou_threshold):  # 对网络输出(单个/批量)求非极大值抑制前的指标
     tp = 0
     tn = 0
     tp_fn = 0
@@ -28,11 +28,11 @@ def acc_pre_rec_ap(pred, true, judge, confidence_threshold, iou_threshold):  # �
             pred_confidence_opposite = pred[i][judge_opposite][..., 4]  # 不需要预测的位置
             pred_class = torch.argmax(pred_judge[..., 5:], dim=1)
             true_class = torch.argmax(pred_judge[..., 5:], dim=1)
-            judge_tp = torch.where((pred_confidence >= confidence_threshold) & (pred_class == true_class) &
+            tp_judge = torch.where((pred_confidence >= confidence_threshold) & (pred_class == true_class) &
                                    (iou(pred_frame, true_frame) > iou_threshold), True, False)
             judge_tn = torch.where(pred_confidence_opposite < confidence_threshold, True, False)
             tp_fn += len(pred_confidence)
-            tp += len(pred_confidence[judge_tp])
+            tp += len(pred_confidence[tp_judge])
             tn_fp += len(pred_confidence_opposite)
             tn += len(pred_confidence_opposite[judge_tn])
         else:  # 所有位置都不需要预测
@@ -44,3 +44,17 @@ def acc_pre_rec_ap(pred, true, judge, confidence_threshold, iou_threshold):  # �
     fp = tn_fp - tn
     fn = tp_fn - tp
     return tp, tn, fp, fn
+
+
+def nms_tp_fn_fp(pred, true, iou_threshold):  # 输入为(batch,(x_min,y_min,w,h,类别号))相对/真实坐标
+    tp = 0
+    fn = 0
+    for i in range(len(true)):
+        target = true[i]
+        iou_all = iou(pred, target)
+        judge_tp = torch.where((iou_all > iou_threshold) & (pred[:, 4] == target[4]), True, False)
+        judge_fn = torch.where((iou_all > iou_threshold) & (pred[:, 4] != target[4]), True, False)
+        tp += len(pred[judge_tp])
+        fn += len(pred[judge_fn])
+    fp = len(pred) - tp - fn
+    return tp, fn, fp

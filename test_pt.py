@@ -41,7 +41,7 @@ def confidence_screen(pred, confidence_threshold):
     return result
 
 
-def iou(A, B):  # 输入为(batch,(x_min,y_min,w,h))
+def iou(A, B):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
     x1 = np.maximum(A[:, 0], B[0])
     y1 = np.maximum(A[:, 1], B[1])
     x2 = np.minimum(A[:, 0] + A[:, 2], B[0] + B[2])
@@ -52,7 +52,7 @@ def iou(A, B):  # 输入为(batch,(x_min,y_min,w,h))
     return intersection / union
 
 
-def nms(pred, iou_threshold):
+def nms(pred, iou_threshold):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
     result = []
     while len(pred) > 0:
         result.append(pred[0])  # 每轮开始时添加第一个到结果中
@@ -65,7 +65,7 @@ def nms(pred, iou_threshold):
     return np.stack(result, axis=0)
 
 
-def draw(image, frame, cls, name):  # 输入(x_min,y_min,w,h)
+def draw(image, frame, cls, name):  # 输入(x_min,y_min,w,h)真实坐标
     for i in range(len(frame)):
         a = (int(frame[i][0]), int(frame[i][1]))
         b = (int(frame[i][0] + frame[i][2]), int(frame[i][1] + frame[i][3]))
@@ -99,7 +99,7 @@ def test_pt():
             for i in range(args.batch):
                 pred = [_[i] for _ in pred_batch]  # (Cx,Cy,w,h)
                 pred = confidence_screen(pred, args.confidence_threshold)  # 置信度筛选
-                pred[0:2] = pred[0:2] - 1 / 2 * pred[2:4]  # (x_min,y_min,w,h)
+                pred[0:2] = pred[0:2] - 1 / 2 * pred[2:4]  # (x_min,y_min,w,h)真实坐标
                 pred = nms(pred, args.iou_threshold)  # 非极大值抑制
                 frame = pred[:, 0:4]  # 边框
                 cls = np.argmax(pred[:, 5:], axis=1)  # 类别

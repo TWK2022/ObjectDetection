@@ -1,6 +1,6 @@
 import tqdm
 import torch
-from block.metric_get import acc_pre_rec_ap
+from block.metric_get import tp_tn_fp_fn, nms_tp_fn_fp
 
 
 def val_get(args, val_dataloader, model, loss):
@@ -26,8 +26,8 @@ def val_get(args, val_dataloader, model, loss):
             val_confidence_loss += confidence_loss.item()
             val_class_loss += class_loss.item()
             # 计算指标
-            tp, tn, fp, fn = acc_pre_rec_ap(pred_batch, true_batch, judge_batch, args.confidence_threshold,
-                                            args.iou_threshold)
+            tp, tn, fp, fn = tp_tn_fp_fn(pred_batch, true_batch, judge_batch, args.confidence_threshold,
+                                         args.iou_threshold)
             tp_all += tp
             tn_all += tn
             fp_all += fp

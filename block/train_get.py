@@ -102,10 +102,11 @@ class torch_dataset(torch.utils.data.Dataset):
         stride_dict = {'yolov5': (8, 16, 32),
                        'yolov7': (8, 16, 32)
                        }  # 每个输出层尺寸缩小的幅度
-        anchor_dict = {'yolov5': (((10, 13), (16, 30), (33, 23)), ((30, 61), (62, 45), (59, 119)),
-                                  ((116, 90), (156, 198), (373, 326))),
-                       'yolov7': (((10, 13), (16, 30), (33, 23)), ((30, 61), (62, 45), (59, 119)),
-                                  ((116, 90), (156, 198), (373, 326)))}  # 先验框
+        anchor_dict = {'yolov5': (((12, 16), (19, 36), (40, 28)), ((36, 75), (76, 55), (72, 146)),
+                                  ((142, 110), (192, 243), (459, 401))),
+                       'yolov7': (((12, 16), (19, 36), (40, 28)), ((36, 75), (76, 55), (72, 146)),
+                                  ((142, 110), (192, 243), (459, 401)))
+                       }  # 先验框
         wh_multiple_dict = {'yolov5': 4,
                             'yolov7': 4
                             }  # 宽高的倍数，真实wh=网络原始输出[0-1]*倍数*anchor
@@ -124,7 +125,8 @@ class torch_dataset(torch.utils.data.Dataset):
         if self.wandb:
             self.class_name = class_name
             self.wandb_run = args.wandb_run
-            self.wandb_num = 0  # 用于限制添加的图片数量(最多添加20张)
+            self.wandb_num = 0  # 用于限制添加的图片数量(最多添加args.wandb_image_num张)
+            self.wandb_image_num = args.wandb_image_num
 
     def __len__(self):
         return len(self.data)
@@ -188,7 +190,7 @@ class torch_dataset(torch.utils.data.Dataset):
             label_list[i] = label_matrix
             judge_list[i] = judge_matrix
         # 使用wandb添加图片
-        if self.wandb and self.wandb_num < 20:
+        if self.wandb and self.wandb_num < self.wandb_image_num:
             box_data = []
             cls_num = torch.argmax(cls, dim=1)
             frame[:, 0:2] = frame[:, 0:2] - 1 / 2 * frame[:, 2:4]

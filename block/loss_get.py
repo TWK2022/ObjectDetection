@@ -30,12 +30,12 @@ class loss_prepare(object):
                 class_loss += self.loss_weight[i][0] * self.loss_weight[i][3] * class_add  # 总分类损失
         return frame_loss + confidence_loss + class_loss, frame_loss, confidence_loss, class_loss
 
-    def _center_to_min(self, pred, true):
+    def _center_to_min(self, pred, true):  # (Cx,Cy)->(x_min,y_min)
         pred[:, 0:2] = pred[:, 0:2] - 1 / 2 * pred[:, 2:4]
         true[:, 0:2] = true[:, 0:2] - 1 / 2 * true[:, 2:4]
         return pred, true
 
-    def _ciou(self, pred, true):  # 输入为(batch,(x_min,y_min,w,h))
+    def _ciou(self, pred, true):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
         iou = self._iou(pred, true)
         L1_L2 = self._L1_L2(pred, true)
         v = (4 / (3.14159 ** 2)) * torch.square(
@@ -44,7 +44,7 @@ class loss_prepare(object):
             alpha = v / (1 - iou + v + 0.00001)
         return iou - L1_L2 - alpha * v
 
-    def _iou(self, pred, true):  # 输入为(batch,(x_min,y_min,w,h))
+    def _iou(self, pred, true):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
         x1 = torch.maximum(pred[:, 0], true[:, 0])
         y1 = torch.maximum(pred[:, 1], true[:, 1])
         x2 = torch.minimum(pred[:, 0] + pred[:, 2], true[:, 0] + true[:, 2])
@@ -54,7 +54,7 @@ class loss_prepare(object):
         union = pred[:, 2] * pred[:, 3] + true[:, 2] * true[:, 3] - intersection
         return intersection / union
 
-    def _L1_L2(self, pred, true):  # 输入为(batch,(x_min,y_min,w,h))
+    def _L1_L2(self, pred, true):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
         x1 = torch.minimum(pred[:, 0], true[:, 0])
         y1 = torch.minimum(pred[:, 1], true[:, 1])
         x2 = torch.maximum(pred[:, 0] + pred[:, 2], true[:, 0] + true[:, 2])

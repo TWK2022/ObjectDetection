@@ -7,8 +7,8 @@ class yolov5(torch.nn.Module):
         super().__init__()
         self.stride = (8, 16, 32)
         self.output_num = (3, 3, 3)  # 每个输出层的小层数
-        self.anchor = (((10, 13), (16, 30), (33, 23)), ((30, 61), (62, 45), (59, 119)),
-                       ((116, 90), (156, 198), (373, 326)))
+        self.anchor = (((12, 16), (19, 36), (40, 28)), ((36, 75), (76, 55), (72, 146)),
+                       ((142, 110), (192, 243), (459, 401)))
         self.output_size = [int(args.input_size // i) for i in self.stride]  # 每个输出层的尺寸，如(80,40,20)
         self.output_class = args.output_class
         dim_dict = {'n': 8, 's': 16, 'm': 32, 'l': 64}

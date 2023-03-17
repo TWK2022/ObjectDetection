@@ -26,6 +26,7 @@ parser.add_argument('--data_path', default=r'D:\dataset\ObjectDetection\lamp', t
 parser.add_argument('--wandb', default=False, type=bool, help='|是否使用wandb可视化|')
 parser.add_argument('--wandb_project', default='test', type=str, help='|wandb项目名称|')
 parser.add_argument('--wandb_name', default='train', type=str, help='|wandb项目中的训练名称|')
+parser.add_argument('--wandb_image_num', default=10, type=int, help='|wandb保存图片的数量|')
 parser.add_argument('--save_name', default='best.pt', type=str, help='|保存模型的位置|')
 parser.add_argument('--weight', default='best.pt', type=str, help='|已有模型的位置，如果没找到模型则会创建新模型|')
 parser.add_argument('--model', default='yolov7', type=str, help='|模型选择|')
