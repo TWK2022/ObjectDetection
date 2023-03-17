@@ -11,10 +11,12 @@ def train_get(args, data_dict, model_dict, loss):
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     train_dataloader = torch.utils.data.DataLoader(torch_dataset(args, 'train', data_dict['train'], data_dict['class']),
                                                    batch_size=args.batch, shuffle=True, drop_last=True,
-                                                   pin_memory=args.latch, num_workers=args.num_worker)
+                                                   pin_memory=args.latch, num_workers=args.num_worker,
+                                                   collate_fn=collate_fn)
     val_dataloader = torch.utils.data.DataLoader(torch_dataset(args, 'val', data_dict['val'], data_dict['class']),
                                                  batch_size=args.batch, shuffle=False, drop_last=False,
-                                                 pin_memory=args.latch, num_workers=args.num_worker)
+                                                 pin_memory=args.latch, num_workers=args.num_worker,
+                                                 collate_fn=collate_fn)
     for epoch in range(args.epoch):
         # 训练
         print(f'\n-----------------------第{epoch + 1}轮-----------------------')
@@ -23,7 +25,7 @@ def train_get(args, data_dict, model_dict, loss):
         train_frame_loss = 0  # 记录边框损失
         train_confidence_loss = 0  # 记录置信度框损失
         train_class_loss = 0  # 记录类别损失
-        for item, (image_batch, true_batch, judge_batch) in enumerate(tqdm.tqdm(train_dataloader)):
+        for item, (image_batch, true_batch, judge_batch, label_batch) in enumerate(tqdm.tqdm(train_dataloader)):
             image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到设备上
             for i in range(len(true_batch)):  # 将标签矩阵放到对应设备上
                 true_batch[i] = true_batch[i].to(args.device, non_blocking=args.latch)
@@ -58,25 +60,17 @@ def train_get(args, data_dict, model_dict, loss):
         del image_batch, true_batch, judge_batch, pred_batch, loss_batch
         torch.cuda.empty_cache()
         # 验证
-        val_loss, val_frame_loss, val_confidence_loss, val_class_loss, accuracy, precision, recall, m_ap = \
-            val_get(args, val_dataloader, model, loss)
+        val_loss, val_frame_loss, val_confidence_loss, val_class_loss, accuracy, precision, recall, m_ap, \
+        nms_precision, nms_recall, nms_m_ap = val_get(args, val_dataloader, model, loss)
         # 保存
-        if m_ap > 0.25 and m_ap > model_dict['val_m_ap']:
+        if nms_m_ap > 0.25 and nms_m_ap > model_dict['val_nms_m_ap']:
             model_dict['model'] = model
             model_dict['class'] = data_dict['class']
             model_dict['epoch'] = epoch
             model_dict['train_loss'] = train_loss
-            model_dict['train_frame_loss'] = train_frame_loss
-            model_dict['train_confidence_loss'] = train_confidence_loss
-            model_dict['train_class_loss'] = train_class_loss
             model_dict['val_loss'] = val_loss
-            model_dict['val_frame_loss'] = val_frame_loss
-            model_dict['val_confidence_loss'] = val_confidence_loss
-            model_dict['val_class_loss'] = val_class_loss
-            model_dict['val_accuracy'] = accuracy
-            model_dict['val_precision'] = precision
-            model_dict['val_recall'] = recall
             model_dict['val_m_ap'] = m_ap
+            model_dict['val_nms_m_ap'] = nms_m_ap
             torch.save(model_dict, args.save_name)
             print('\n| 保存模型:{} | val_m_ap:{:.4f} |\n'
                   .format(args.save_name, m_ap))
@@ -93,7 +87,10 @@ def train_get(args, data_dict, model_dict, loss):
                                 'val_metric/val_accuracy': accuracy,
                                 'val_metric/val_precision': precision,
                                 'val_metric/val_recall': recall,
-                                'val_metric/val_m_ap': m_ap})
+                                'val_metric/val_m_ap': m_ap,
+                                'val_nms_metric/val_nms_precision': nms_precision,
+                                'val_nms_metric/val_nms_recall': nms_recall,
+                                'val_nms_metric/val_nms_m_ap': nms_m_ap})
     return model_dict
 
 
@@ -152,8 +149,8 @@ class torch_dataset(torch.utils.data.Dataset):
         # 合并为标签
         label = torch.concat([frame, confidence, cls], dim=1)
         # 标签矩阵处理
-        label_list = [0 for _ in range(len(self.output_num))]  # 存放每个输出层的标签矩阵
-        judge_list = [0 for _ in range(len(self.output_num))]  # 存放每个输出层的判断矩阵
+        label_matrix_list = [0 for _ in range(len(self.output_num))]  # 存放每个输出层的标签矩阵
+        judge_matrix_list = [0 for _ in range(len(self.output_num))]  # 存放每个输出层的判断矩阵
         for i in range(len(self.output_num)):  # 遍历每个输出层
             label_matrix = torch.zeros(self.output_num[i], self.output_size[i], self.output_size[i],
                                        5 + self.output_class, dtype=torch.float32)  # 标签矩阵
@@ -190,8 +187,8 @@ class torch_dataset(torch.utils.data.Dataset):
                         label_matrix[j, x_grid[k], y_grid_add[k]] = label[k]
                         judge_matrix[j, x_grid[k], y_grid_add[k]] = True
             # 存放每个输出层的结果
-            label_list[i] = label_matrix
-            judge_list[i] = judge_matrix
+            label_matrix_list[i] = label_matrix
+            judge_matrix_list[i] = judge_matrix
         # 使用wandb添加图片
         if self.wandb and self.wandb_num < self.wandb_image_num:
             box_data = []
@@ -209,7 +206,7 @@ class torch_dataset(torch.utils.data.Dataset):
             wandb_image = wandb.Image(np.array(image, dtype=np.uint8), boxes={"predictions": {"box_data": box_data}})
             self.wandb_run.log({f'image/{self.tag}_image': wandb_image})
             self.wandb_num += 1
-        return image, label_list, judge_list
+        return image, label_matrix_list, judge_matrix_list, label
 
     def _resize(self, image, frame):  # 将图片四周填充变为正方形，frame输入输出都为[[Cx,Cy,w,h]...](相对原图片的比例值)
         shape = image.shape
@@ -241,3 +238,26 @@ class torch_dataset(torch.utils.data.Dataset):
                 frame[:, 2] = np.around(frame[:, 2] * w)
                 frame[:, 3] = np.around(frame[:, 3] * h)
                 return image_resize, frame
+
+
+def collate_fn(batch):  # 自定义__getitem__合并方式
+    image_list = []
+    label_matrix_list = [[] for _ in range(len(batch[0][1]))]
+    judge_matrix_list = [[] for _ in range(len(batch[0][2]))]
+    label_list = []
+    for i in range(len(batch)):  # 遍历所有__getitem__
+        image = batch[i][0]
+        label_matrix = batch[i][1]
+        judge_matrix = batch[i][2]
+        label = batch[i][3]
+        image_list.append(image)
+        for j in range(len(label_matrix)):  # 遍历每个输出层
+            label_matrix_list[j].append(label_matrix[j])
+            judge_matrix_list[j].append(judge_matrix[j])
+        label_list.append(label)
+    # 合并
+    image_batch = torch.stack(image_list, dim=0)
+    for i in range(len(label_matrix_list)):
+        label_matrix_list[i] = torch.stack(label_matrix_list[i], dim=0)
+        judge_matrix_list[i] = torch.stack(judge_matrix_list[i], dim=0)
+    return image_batch, label_matrix_list, judge_matrix_list, label_list

@@ -41,7 +41,7 @@ def confidence_screen(pred, confidence_threshold):
     return result
 
 
-def iou(A, B):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
+def iou_single(A, B):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
     x1 = np.maximum(A[:, 0], B[0])
     y1 = np.maximum(A[:, 1], B[1])
     x2 = np.minimum(A[:, 0] + A[:, 2], B[0] + B[2])
@@ -59,7 +59,7 @@ def nms(pred, iou_threshold):  # 输入为(batch,(x_min,y_min,w,h))相对/真实
         pred = pred[1:]
         if len(pred) > 0:
             target = result[-1]
-            iou_all = iou(pred, target)
+            iou_all = iou_single(pred, target)
             judge = np.where(iou_all < iou_threshold, True, False)
             pred = pred[judge]
     return np.stack(result, axis=0)
@@ -87,19 +87,18 @@ def test_pt():
     image_dir = sorted(os.listdir(args.image_path))
     start_time = time.time()
     with torch.no_grad():
-        dataloader = torch.utils.data.DataLoader(torch_dataset(image_dir), batch_size=args.batch,
-                                                 shuffle=False, drop_last=False, pin_memory=False,
-                                                 num_workers=args.num_worker)
+        dataloader = torch.utils.data.DataLoader(torch_dataset(image_dir), batch_size=args.batch, shuffle=False,
+                                                 drop_last=False, pin_memory=False, num_workers=args.num_worker)
         for item, (image_batch, name_batch) in enumerate(dataloader):
             image_all = image_batch.cpu().numpy().astype(np.uint8)  # 转为numpy，用于画图
             image_batch = image_batch.to(args.device)
             pred_batch = model(image_batch)
             pred_batch = [pred_batch[i].cpu().numpy() for i in range(len(pred_batch))]  # 转为numpy
             # 对batch中的每张图片分别操作
-            for i in range(args.batch):
+            for i in range(len(pred_batch[0])):
                 pred = [_[i] for _ in pred_batch]  # (Cx,Cy,w,h)
-                pred = confidence_screen(pred, args.confidence_threshold)  # 置信度筛选
-                pred[0:2] = pred[0:2] - 1 / 2 * pred[2:4]  # (x_min,y_min,w,h)真实坐标
+                pred = confidence_screen(pred, args.confidence_threshold)[:100]  # 置信度筛选，最多取前100
+                pred[:, 0:2] = pred[:, 0:2] - 1 / 2 * pred[:, 2:4]  # (x_min,y_min,w,h)真实坐标
                 pred = nms(pred, args.iou_threshold)  # 非极大值抑制
                 frame = pred[:, 0:4]  # 边框
                 cls = np.argmax(pred[:, 5:], axis=1)  # 类别

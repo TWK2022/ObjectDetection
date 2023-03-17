@@ -99,10 +99,11 @@ if __name__ == '__main__':
         print('\n| 最佳结果 | train_loss:{:.4f} | train_frame_loss:{:.4f} | train_confidence_loss:{:.4f} |'
               ' train_class_loss:{:.4f} | val_loss:{:.4f} | val_frame_loss:{:.4f} | val_confidence_loss:{:.4f} |'
               ' val_class_loss:{:.4f} | val_accuracy:{:.4f} | val_precision:{:.4f} | val_recall:{:.4f} |'
-              ' val_m_ap:{:.4f} | \n'
+              ' val_m_ap:{:.4f} | val_nms_precision:{:.4f} | val_nms_recall:{:.4f} | val_nms_m_ap:{:.4f} |\n'
               .format(model_dict['train_loss'], model_dict['train_frame_loss'], model_dict['train_confidence_loss'],
                       model_dict['train_class_loss'], model_dict['val_loss'], model_dict['val_frame_loss'],
                       model_dict['val_confidence_loss'], model_dict['val_class_loss'], model_dict['val_accuracy'],
-                      model_dict['val_precision'], model_dict['val_recall'], model_dict['val_m_ap']))
+                      model_dict['val_precision'], model_dict['val_recall'], model_dict['val_m_ap'],
+                      model_dict['val_nms_precision'], model_dict['val_nms_recall'], model_dict['val_nms_m_ap']))
     except:
         print('\n| !由于指标太低没有保存任何结果! |\n')
