@@ -49,10 +49,10 @@ def val_get(args, val_dataloader, model, loss):
                 if len(true) == 0:  # 该图片没有标签
                     nms_fp_all += len(pred)
                     continue
-                # nms_tp, nms_fn, nms_fp = nms_tp_fn_fp(pred, true, args.iou_threshold)
-                # nms_tp_all += nms_tp
-                # nms_fn_all += nms_fn
-                # nms_fp_all += nms_fp
+                nms_tp, nms_fn, nms_fp = nms_tp_fn_fp(pred, true, args.iou_threshold)
+                nms_tp_all += nms_tp
+                nms_fn_all += nms_fn
+                nms_fp_all += nms_fp
         # 计算平均损失
         val_loss = val_loss / (item + 1)
         val_frame_loss = val_frame_loss / (item + 1)
