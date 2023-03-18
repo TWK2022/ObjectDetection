@@ -46,7 +46,7 @@ def val_get(args, val_dataloader, model, loss):
                     continue
                 pred[:, 0:2] = pred[:, 0:2] - 1 / 2 * pred[:, 2:4]  # (x_min,y_min,w,h)真实坐标
                 pred = nms(pred, args.iou_threshold)  # 非极大值抑制
-                if len(pred) == 0:  # 该图片没有标签
+                if len(true) == 0:  # 该图片没有标签
                     nms_fp_all += len(pred)
                     continue
                 nms_tp, nms_fn, nms_fp = nms_tp_fn_fp(pred, true, args.iou_threshold)

@@ -14,6 +14,8 @@ def confidence_screen(pred, confidence_threshold):
         judge = torch.where(pred[i][..., 4] > confidence_threshold, True, False)
         result.append((pred[i][judge]))
     result = torch.concat(result, dim=0)
+    if result.shape[0] == 0:
+        return result
     result = torch.stack(sorted(list(result), key=lambda x: x[4], reverse=True))  # 按置信度排序
     return result
 

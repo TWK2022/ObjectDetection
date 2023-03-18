@@ -28,6 +28,9 @@ class loss_prepare(object):
                 frame_loss += self.loss_weight[i][0] * self.loss_weight[i][1] * (1 - torch.mean(frame_add))  # 总边框损失
                 confidence_loss += self.loss_weight[i][0] * self.loss_weight[i][2] * confidence_add  # 总置信度损失
                 class_loss += self.loss_weight[i][0] * self.loss_weight[i][3] * class_add  # 总分类损失
+            else:  # 没有需要预测的位置
+                confidence_add = self.loss_confidence(pred[i][..., 4], true[i][..., 4])  # 置信度损失(计算所有的)
+                confidence_loss += self.loss_weight[i][0] * self.loss_weight[i][2] * confidence_add  # 总置信度损失
         return frame_loss + confidence_loss + class_loss, frame_loss, confidence_loss, class_loss
 
     def _center_to_min(self, pred, true):  # (Cx,Cy)->(x_min,y_min)

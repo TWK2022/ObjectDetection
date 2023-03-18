@@ -11,6 +11,7 @@ def model_get(args):
         model = eval(choice_dict[args.model])
         model_dict = {}
         model_dict['model'] = model
+        model_dict['val_m_ap'] = 0
         model_dict['val_nms_m_ap'] = 0
     model_dict['model'] = model_dict['model'].to(args.device)
     model_dict['model'](torch.rand(args.batch, args.input_size, args.input_size, 3).to(args.device))  # 检查

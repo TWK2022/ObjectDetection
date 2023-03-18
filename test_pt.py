@@ -66,6 +66,7 @@ def nms(pred, iou_threshold):  # 输入为(batch,(x_min,y_min,w,h))相对/真实
 
 
 def draw(image, frame, cls, name):  # 输入(x_min,y_min,w,h)真实坐标
+    image = image.astype(np.uint8)
     for i in range(len(frame)):
         a = (int(frame[i][0]), int(frame[i][1]))
         b = (int(frame[i][0] + frame[i][2]), int(frame[i][1] + frame[i][3]))

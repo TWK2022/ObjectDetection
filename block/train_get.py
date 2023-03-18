@@ -25,7 +25,7 @@ def train_get(args, data_dict, model_dict, loss):
         train_frame_loss = 0  # 记录边框损失
         train_confidence_loss = 0  # 记录置信度框损失
         train_class_loss = 0  # 记录类别损失
-        for item, (image_batch, true_batch, judge_batch, label_batch) in enumerate(tqdm.tqdm(train_dataloader)):
+        for item, (image_batch, true_batch, judge_batch, label_list) in enumerate(tqdm.tqdm(train_dataloader)):
             image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到设备上
             for i in range(len(true_batch)):  # 将标签矩阵放到对应设备上
                 true_batch[i] = true_batch[i].to(args.device, non_blocking=args.latch)
@@ -63,7 +63,7 @@ def train_get(args, data_dict, model_dict, loss):
         val_loss, val_frame_loss, val_confidence_loss, val_class_loss, accuracy, precision, recall, m_ap, \
         nms_precision, nms_recall, nms_m_ap = val_get(args, val_dataloader, model, loss)
         # 保存
-        if nms_m_ap > 0.25 and nms_m_ap > model_dict['val_nms_m_ap']:
+        if m_ap > 0.25 and nms_m_ap > model_dict['val_m_ap']:
             model_dict['model'] = model
             model_dict['class'] = data_dict['class']
             model_dict['epoch'] = epoch
@@ -120,6 +120,7 @@ class torch_dataset(torch.utils.data.Dataset):
         self.output_size = [int(self.input_size // i) for i in self.stride]  # 每个输出层的尺寸，如(80,40,20)
         self.tag = tag  # 用于区分是训练集还是验证集
         self.data = data
+        self.mosaic = args.mosaic
         # wandb可视化部分
         self.wandb = args.wandb
         if self.wandb:
@@ -131,15 +132,32 @@ class torch_dataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.data)
 
+    def draw(self, image, frame):  # 输入(x_min,y_min,w,h)真实坐标
+        image = image.astype(np.uint8)
+        for i in range(len(frame)):
+            a = (int(frame[i][0]), int(frame[i][1]))
+            b = (int(frame[i][0] + frame[i][2]), int(frame[i][1] + frame[i][3]))
+            cv2.rectangle(image, a, b, color=(0, 255, 0), thickness=2)
+        cv2.imshow('pred', image)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
     def __getitem__(self, index):
-        # 图片和标签处理，边框坐标处理为真实的Cx,Cy,w,h
-        image = cv2.imread(self.data[index][0])  # 读取图片
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # 转为RGB通道
-        label = self.data[index][1]  # 读取原始标签([:,类别号+Cx,Cy,w,h]，边框为相对边长的比例值)
-        image, frame = self._resize(image, label[:, 1:])  # 缩放和填充图片(归一化、减均值、除以方差、调维度等在模型中完成)
+        # 图片和标签处理，边框坐标处理为真实的Cx,Cy,w,h(归一化、减均值、除以方差、调维度等在模型中完成)
+        if self.tag == 'train' and torch.rand(1) < self.mosaic:
+            index_mix = torch.randperm(len(self.data))[0:4]
+            index_mix[0] = index
+            image, frame, label = self._mosaic(index_mix)  # 马赛克增强，相对坐标(Cx,Cy,w,h)变为真实坐标
+            image = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_BGR2RGB)  # 转为RGB通道
+        else:
+            image = cv2.imread(self.data[index][0])  # 读取图片
+            label = self.data[index][1].copy()  # 读取原始标签([:,类别号+Cx,Cy,w,h]，边框为相对边长的比例值)
+            image, frame = self._resize(image.astype(np.uint8), label[:, 1:],
+                                        self.input_size)  # 缩放和填充图片，相对坐标(Cx,Cy,w,h)变为真实坐标
+            image = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_BGR2RGB)  # 转为RGB通道
         image = torch.tensor(image, dtype=torch.float32)
-        # 边框:将相对坐标变为绝对坐标
-        frame = torch.tensor(frame, dtype=torch.float32) * self.input_size
+        # 边框:转换为张量
+        frame = torch.tensor(frame, dtype=torch.float32)
         # 置信度:为1
         confidence = torch.ones((len(label), 1), dtype=torch.float32)
         # 类别:类别独热编码
@@ -208,16 +226,17 @@ class torch_dataset(torch.utils.data.Dataset):
             self.wandb_num += 1
         return image, label_matrix_list, judge_matrix_list, label
 
-    def _resize(self, image, frame):  # 将图片四周填充变为正方形，frame输入输出都为[[Cx,Cy,w,h]...](相对原图片的比例值)
+    def _resize(self, image, frame, input_size):  # 将图片四周填充变为正方形，frame输入输出都为[[Cx,Cy,w,h]...](相对原图片的比例值)
         shape = image.shape
         w0 = shape[1]
         h0 = shape[0]
-        if w0 == h0 == self.input_size:  # 不需要变形
+        if w0 == h0 == input_size:  # 不需要变形
+            frame *= input_size
             return image, frame
         else:
-            image_resize = np.full((self.input_size, self.input_size, 3), 127)
+            image_resize = np.full((input_size, input_size, 3), 127)
             if w0 >= h0:  # 宽大于高
-                w = self.input_size
+                w = input_size
                 h = int(w / w0 * h0)
                 image = cv2.resize(image, (w, h))
                 add_y = (w - h) // 2
@@ -228,7 +247,7 @@ class torch_dataset(torch.utils.data.Dataset):
                 frame[:, 3] = np.around(frame[:, 3] * h)
                 return image_resize, frame
             else:  # 宽小于高
-                h = self.input_size
+                h = input_size
                 w = int(h / h0 * w0)
                 image = cv2.resize(image, (w, h))
                 add_x = (h - w) // 2
@@ -238,6 +257,31 @@ class torch_dataset(torch.utils.data.Dataset):
                 frame[:, 2] = np.around(frame[:, 2] * w)
                 frame[:, 3] = np.around(frame[:, 3] * h)
                 return image_resize, frame
+
+    def _mosaic(self, index_mix):
+        image0 = cv2.imread(self.data[index_mix[0]][0])
+        image1 = cv2.imread(self.data[index_mix[1]][0])
+        image2 = cv2.imread(self.data[index_mix[2]][0])
+        image3 = cv2.imread(self.data[index_mix[3]][0])
+        label0 = self.data[index_mix[0]][1].copy()
+        label1 = self.data[index_mix[1]][1].copy()
+        label2 = self.data[index_mix[2]][1].copy()
+        label3 = self.data[index_mix[3]][1].copy()
+        image_resize = np.full((self.input_size, self.input_size, 3), 127)
+        image0, frame0 = self._resize(image0, label0[:, 1:], self.input_size // 2)
+        image1, frame1 = self._resize(image1, label1[:, 1:], self.input_size // 2)
+        image2, frame2 = self._resize(image2, label2[:, 1:], self.input_size // 2)
+        image3, frame3 = self._resize(image3, label3[:, 1:], self.input_size // 2)
+        image_resize[0:self.input_size // 2, 0:self.input_size // 2] = image0
+        image_resize[self.input_size // 2:self.input_size, 0:self.input_size // 2] = image1
+        image_resize[0:self.input_size // 2, self.input_size // 2:self.input_size] = image2
+        image_resize[self.input_size // 2:self.input_size, self.input_size // 2:self.input_size] = image3
+        frame1[:, 1] += self.input_size // 2
+        frame2[:, 0] += self.input_size // 2
+        frame3[:, 0:2] += self.input_size // 2
+        frame = np.concatenate([frame0, frame1, frame2, frame3], axis=0)
+        label = np.concatenate([label0, label1, label2, label3], axis=0)
+        return image_resize, frame, label
 
 
 def collate_fn(batch):  # 自定义__getitem__合并方式
