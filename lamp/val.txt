@@ -1,2 +1,0 @@
-D:\dataset\ObjectDetection\lamp/image/10.png
-D:\dataset\ObjectDetection\lamp/image/10_H_flip.png
