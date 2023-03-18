@@ -22,15 +22,15 @@ from block.train_get import train_get
 # -------------------------------------------------------------------------------------------------------------------- #
 # 设置
 parser = argparse.ArgumentParser(description='目标检测')
-parser.add_argument('--data_path', default=r'D:\dataset\ObjectDetection\lamp', type=str, help='|数据根目录路径|')
+parser.add_argument('--data_path', default=r'lamp', type=str, help='|数据根目录路径|')
 parser.add_argument('--wandb', default=False, type=bool, help='|是否使用wandb可视化|')
 parser.add_argument('--wandb_project', default='test', type=str, help='|wandb项目名称|')
 parser.add_argument('--wandb_name', default='train', type=str, help='|wandb项目中的训练名称|')
 parser.add_argument('--wandb_image_num', default=10, type=int, help='|wandb保存图片的数量|')
 parser.add_argument('--save_name', default='best.pt', type=str, help='|保存模型的位置|')
 parser.add_argument('--weight', default='best.pt', type=str, help='|已有模型的位置，如果没找到模型则会创建新模型|')
-parser.add_argument('--model', default='yolov7', type=str, help='|模型选择|')
-parser.add_argument('--model_type', default='n', type=str, help='|模型的型号参数，部分模型有|')
+parser.add_argument('--model', default='yolov5', type=str, help='|模型选择|')
+parser.add_argument('--model_type', default='s', type=str, help='|模型的型号参数，部分模型有|')
 parser.add_argument('--input_size', default=640, type=int, help='|输入图片大小|')
 parser.add_argument('--output_class', default=1, type=int, help='|输出的类别数|')
 parser.add_argument('--loss_weight', default=((1 / 3, 0.2, 0.6, 0.2), (1 / 3, 0.3, 0.5, 0.2), (1 / 3, 0.4, 0.4, 0.2)),
@@ -43,7 +43,7 @@ parser.add_argument('--device', default='cuda', type=str, help='|训练设备|')
 parser.add_argument('--latch', default=True, type=bool, help='|模型和数据是否为锁存，True为锁存|')
 parser.add_argument('--num_worker', default=0, type=int, help='|CPU在处理数据时使用的进程数，0表示只有一个主进程，一般为0、2、4、8|')
 parser.add_argument('--scaler', default=False, type=bool, help='|混合float16精度训练|')
-parser.add_argument('--mosaic', default=0.8, type=float, help='|使用mosaic增强的概率|')
+parser.add_argument('--mosaic', default=0, type=float, help='|使用mosaic增强的概率|')
 parser.add_argument('--confidence_threshold', default=0.5, type=float, help='|指标计算置信度阈值|')
 parser.add_argument('--iou_threshold', default=0.5, type=float, help='|指标计算iou阈值|')
 args = parser.parse_args()
@@ -107,4 +107,4 @@ if __name__ == '__main__':
                       model_dict['val_precision'], model_dict['val_recall'], model_dict['val_m_ap'],
                       model_dict['val_nms_precision'], model_dict['val_nms_recall'], model_dict['val_nms_m_ap']))
     except:
-        print('\n| !由于指标太低没有保存任何结果! |\n')
+        print('\n| !由于指标太低没有保存最佳模型! |\n')

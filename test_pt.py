@@ -13,7 +13,7 @@ parser.add_argument('--model_path', default='best.pt', type=str, help='|pt模型
 parser.add_argument('--image_path', default='image', type=str, help='|图片文件夹位置|')
 parser.add_argument('--input_size', default=640, type=int, help='|模型输入图片大小|')
 parser.add_argument('--batch', default=1, type=int, help='|输入图片批量|')
-parser.add_argument('--confidence_threshold', default=0.8, type=float, help='|置信筛选度阈值(>阈值留下)|')
+parser.add_argument('--confidence_threshold', default=0.5, type=float, help='|置信筛选度阈值(>阈值留下)|')
 parser.add_argument('--iou_threshold', default=0.65, type=float, help='|iou阈值筛选阈值(>阈值留下)|')
 parser.add_argument('--device', default='cuda', type=str, help='|用CPU/GPU推理|')
 parser.add_argument('--num_worker', default=0, type=int, help='|CPU在处理数据时使用的进程数，0表示只有一个主进程，一般为0、2、4、8|')
@@ -37,6 +37,8 @@ def confidence_screen(pred, confidence_threshold):
         judge = np.where(pred[i][..., 4] > confidence_threshold, True, False)
         result.append((pred[i][judge]))
     result = np.concatenate(result, axis=0)
+    if result.shape[0] == 0:
+        return result
     result = np.stack(sorted(list(result), key=lambda x: x[4], reverse=True))  # 按置信度排序
     return result
 
@@ -99,6 +101,9 @@ def test_pt():
             for i in range(len(pred_batch[0])):
                 pred = [_[i] for _ in pred_batch]  # (Cx,Cy,w,h)
                 pred = confidence_screen(pred, args.confidence_threshold)[:100]  # 置信度筛选，最多取前100
+                if pred.shape[0] == 0:
+                    print(f'{name_batch[i]}:None')
+                    continue
                 pred[:, 0:2] = pred[:, 0:2] - 1 / 2 * pred[:, 2:4]  # (x_min,y_min,w,h)真实坐标
                 pred = nms(pred, args.iou_threshold)  # 非极大值抑制
                 frame = pred[:, 0:4]  # 边框

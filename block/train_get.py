@@ -63,17 +63,17 @@ def train_get(args, data_dict, model_dict, loss):
         val_loss, val_frame_loss, val_confidence_loss, val_class_loss, accuracy, precision, recall, m_ap, \
         nms_precision, nms_recall, nms_m_ap = val_get(args, val_dataloader, model, loss)
         # 保存
-        if m_ap > 0.25 and nms_m_ap > model_dict['val_m_ap']:
-            model_dict['model'] = model
-            model_dict['class'] = data_dict['class']
-            model_dict['epoch'] = epoch
-            model_dict['train_loss'] = train_loss
-            model_dict['val_loss'] = val_loss
-            model_dict['val_m_ap'] = m_ap
-            model_dict['val_nms_m_ap'] = nms_m_ap
-            torch.save(model_dict, args.save_name)
-            print('\n| 保存模型:{} | val_m_ap:{:.4f} |\n'
-                  .format(args.save_name, m_ap))
+        model_dict['model'] = model
+        model_dict['class'] = data_dict['class']
+        model_dict['epoch'] = epoch
+        model_dict['train_loss'] = train_loss
+        model_dict['val_loss'] = val_loss
+        model_dict['val_m_ap'] = m_ap
+        model_dict['val_nms_m_ap'] = nms_m_ap
+        torch.save(model_dict, 'last.pt')  # 保存最后一次训练的模型
+        if m_ap > 0.25 and m_ap > model_dict['val_m_ap']:
+            torch.save(model_dict, args.save_name)  # 保存最佳模型
+            print('\n| 保存最佳模型:{} | val_m_ap:{:.4f} |\n'.format(args.save_name, m_ap))
         # wandb
         if args.wandb:
             args.wandb_run.log({'train/train_loss': train_loss,
