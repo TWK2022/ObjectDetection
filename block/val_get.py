@@ -49,7 +49,7 @@ def val_get(args, val_dataloader, model, loss):
                 pred[:, 2:4] = pred[:, 0:2] + pred[:, 2:4]  # (x_min,y_min,x_max,y_max)真实坐标
                 index = torchvision.ops.nms(pred[:, 0:4], pred[:, 4], args.iou_threshold)[:100]  # 非极大值抑制，最多100
                 pred = pred[index]
-                pred[:, 2:4] = pred[:, 2:4] - pred[:, 0:2]
+                pred[:, 2:4] = pred[:, 2:4] - pred[:, 0:2]  # (x_min,y_min,w,h)真实坐标
                 # pred = nms(pred, args.iou_threshold)[:100]  # 非极大值抑制，最多100
                 if len(true) == 0:  # 该图片没有标签
                     nms_fp_all += len(pred)

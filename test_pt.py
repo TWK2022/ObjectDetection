@@ -3,6 +3,7 @@ import cv2
 import time
 import torch
 import argparse
+import torchvision
 import numpy as np
 import albumentations
 
@@ -105,7 +106,11 @@ def test_pt():
                     print(f'{name_batch[i]}:None')
                     continue
                 pred[:, 0:2] = pred[:, 0:2] - pred[:, 2:4] / 2  # (x_min,y_min,w,h)真实坐标
-                pred = nms(pred, args.iou_threshold)  # 非极大值抑制
+                pred[:, 2:4] = pred[:, 0:2] + pred[:, 2:4]  # (x_min,y_min,x_max,y_max)真实坐标
+                index = torchvision.ops.nms(pred[:, 0:4], pred[:, 4], args.iou_threshold)[:100]  # 非极大值抑制，最多100
+                pred = pred[index]
+                pred[:, 2:4] = pred[:, 2:4] - pred[:, 0:2]  # (x_min,y_min,w,h)真实坐标
+                # pred = nms(pred, args.iou_threshold)  # 非极大值抑制
                 frame = pred[:, 0:4]  # 边框
                 cls = np.argmax(pred[:, 5:], axis=1)  # 类别
                 draw(image_all[i], frame, cls, name_batch[i])
