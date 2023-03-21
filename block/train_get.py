@@ -32,7 +32,8 @@ def train_get(args, data_dict, model_dict, loss):
         train_confidence_loss = 0  # 记录置信度框损失
         train_class_loss = 0  # 记录类别损失
         for item, (image_batch, true_batch, judge_batch, label_list) in enumerate(tqdm.tqdm(train_dataloader)):
-            wandb_image_batch = image_batch.cpu().numpy().astype(np.uint8) if args.wandb else None
+            wandb_image_batch = image_batch.cpu().numpy().astype(np.uint8) \
+                if args.wandb and len(wandb_image_list) < args.wandb_image_num else None
             image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到设备上
             for i in range(len(true_batch)):  # 将标签矩阵放到对应设备上
                 true_batch[i] = true_batch[i].to(args.device, non_blocking=args.latch)
