@@ -1,5 +1,6 @@
 import tqdm
 import torch
+import torchvision
 from block.metric_get import tp_tn_fp_fn, nms_tp_fn_fp, confidence_screen, nms
 
 
@@ -40,12 +41,16 @@ def val_get(args, val_dataloader, model, loss):
             for i in range(len(pred_batch[0])):  # 遍历每张图片
                 true = label_list[i].to(args.device)
                 pred = [_[i] for _ in pred_batch]  # (Cx,Cy,w,h)
-                pred = confidence_screen(pred, args.confidence_threshold)[:100]  # 置信度筛选，最多取前100
+                pred = confidence_screen(pred, args.confidence_threshold)  # 置信度筛选
                 if len(pred) == 0:  # 该图片没有预测值
                     nms_fn_all += len(true)
                     continue
-                pred[:, 0:2] = pred[:, 0:2] - 1 / 2 * pred[:, 2:4]  # (x_min,y_min,w,h)真实坐标
-                pred = nms(pred, args.iou_threshold)  # 非极大值抑制
+                pred[:, 0:2] = pred[:, 0:2] - pred[:, 2:4] / 2  # (x_min,y_min,w,h)真实坐标
+                pred[:, 2:4] = pred[:, 0:2] + pred[:, 2:4]  # (x_min,y_min,x_max,y_max)真实坐标
+                index = torchvision.ops.nms(pred[:, 0:4], pred[:, 4], args.iou_threshold)[:100]  # 非极大值抑制，最多100
+                pred = pred[index]
+                pred[:, 2:4] = pred[:, 2:4] - pred[:, 0:2]
+                # pred = nms(pred, args.iou_threshold)[:100]  # 非极大值抑制，最多100
                 if len(true) == 0:  # 该图片没有标签
                     nms_fp_all += len(pred)
                     continue

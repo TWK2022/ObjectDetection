@@ -22,8 +22,8 @@ from block.train_get import train_get
 # -------------------------------------------------------------------------------------------------------------------- #
 # 设置
 parser = argparse.ArgumentParser(description='目标检测')
-parser.add_argument('--data_path', default=r'D:\dataset\ObjectDetection\voc', type=str, help='|数据根目录路径|')
-parser.add_argument('--wandb', default=False, type=bool, help='|是否使用wandb可视化|')
+parser.add_argument('--data_path', default=r'D:\dataset\ObjectDetection\lamp', type=str, help='|数据根目录路径|')
+parser.add_argument('--wandb', default=True, type=bool, help='|是否使用wandb可视化|')
 parser.add_argument('--wandb_project', default='test', type=str, help='|wandb项目名称|')
 parser.add_argument('--wandb_name', default='train', type=str, help='|wandb项目中的训练名称|')
 parser.add_argument('--wandb_image_num', default=10, type=int, help='|wandb保存图片的数量|')
@@ -32,13 +32,13 @@ parser.add_argument('--weight', default='best.pt', type=str, help='|已有模型
 parser.add_argument('--model', default='yolov5', type=str, help='|模型选择|')
 parser.add_argument('--model_type', default='s', type=str, help='|模型的型号参数，部分模型有|')
 parser.add_argument('--input_size', default=640, type=int, help='|输入图片大小|')
-parser.add_argument('--output_class', default=20, type=int, help='|输出的类别数|')
+parser.add_argument('--output_class', default=1, type=int, help='|输出的类别数|')
 parser.add_argument('--loss_weight', default=((1 / 3, 0.2, 0.6, 0.2), (1 / 3, 0.3, 0.5, 0.2), (1 / 3, 0.4, 0.4, 0.2)),
                     type=tuple, help='|每个输出层(从大到小排序)的权重->[总权重、边框权重、置信度权重、分类权重]|')
 parser.add_argument('--label_smooth', default=(0.01, 0.99), type=tuple, help='|标签平滑的值|')
 parser.add_argument('--epoch', default=50, type=int, help='|训练轮数|')
-parser.add_argument('--batch', default=16, type=int, help='|训练批量大小|')
-parser.add_argument('--lr', default=0.002, type=int, help='|初始学习率，训练中采用adam算法|')
+parser.add_argument('--batch', default=4, type=int, help='|训练批量大小|')
+parser.add_argument('--lr', default=0.001, type=int, help='|初始学习率，训练中采用adam算法|')
 parser.add_argument('--device', default='cuda', type=str, help='|训练设备|')
 parser.add_argument('--latch', default=True, type=bool, help='|模型和数据是否为锁存，True为锁存|')
 parser.add_argument('--num_worker', default=0, type=int, help='|CPU在处理数据时使用的进程数，0表示只有一个主进程，一般为0、2、4、8|')

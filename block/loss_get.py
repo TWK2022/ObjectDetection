@@ -36,8 +36,8 @@ class loss_prepare(object):
         return frame_loss + confidence_loss + class_loss, frame_loss, confidence_loss, class_loss
 
     def _center_to_min(self, pred, true):  # (Cx,Cy)->(x_min,y_min)
-        pred[:, 0:2] = pred[:, 0:2] - 1 / 2 * pred[:, 2:4]
-        true[:, 0:2] = true[:, 0:2] - 1 / 2 * true[:, 2:4]
+        pred[:, 0:2] = pred[:, 0:2] - pred[:, 2:4] / 2
+        true[:, 0:2] = true[:, 0:2] - true[:, 2:4] / 2
         return pred, true
 
     def _ciou(self, pred, true):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标

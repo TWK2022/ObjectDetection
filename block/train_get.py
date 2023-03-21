@@ -124,10 +124,14 @@ class torch_dataset(torch.utils.data.Dataset):
         # wandb可视化部分
         self.wandb = args.wandb
         if self.wandb:
-            self.class_name = class_name
             self.wandb_run = args.wandb_run
-            self.wandb_num = 0  # 用于限制添加的图片数量(最多添加args.wandb_image_num张)
+            self.wandb_count = 0  # 用于限制添加的图片数量(最多添加args.wandb_image_num张)
             self.wandb_image_num = args.wandb_image_num
+            self.wandb_image = []  # 记录所有的image最后一起添加
+            self.class_name = class_name  # 用于给边框的添加标签名字
+            self.wandb_class_screen = []  # 用于根据标签名字筛选边框
+            for i in range(len(self.class_name)):
+                self.wandb_class_screen.append({'id': i, 'name': self.class_name[i]})
 
     def __len__(self):
         return len(self.data)
@@ -208,22 +212,26 @@ class torch_dataset(torch.utils.data.Dataset):
             label_matrix_list[i] = label_matrix
             judge_matrix_list[i] = judge_matrix
         # 使用wandb添加图片
-        if self.wandb and self.wandb_num < self.wandb_image_num:
+        if self.wandb and self.wandb_count < self.wandb_image_num:
+            self.wandb_count += 1
             box_data = []
             cls_num = torch.argmax(cls, dim=1)
-            frame[:, 0:2] = frame[:, 0:2] - 1 / 2 * frame[:, 2:4]
+            frame[:, 0:2] = frame[:, 0:2] - frame[:, 2:4] / 2
             frame[:, 2:4] = frame[:, 0:2] + frame[:, 2:4]
+            frame = frame / self.input_size  # (x_min,y_min,x_max,y_max)相对坐标
             for i in range(len(frame)):
                 class_id = cls_num[i].item()
-                box_data.append({"position": {"minX": frame[i][0].item() / self.input_size,
-                                              "minY": frame[i][1].item() / self.input_size,
-                                              "maxX": frame[i][2].item() / self.input_size,
-                                              "maxY": frame[i][3].item() / self.input_size},
+                box_data.append({"position": {"minX": frame[i][0].item(),
+                                              "minY": frame[i][1].item(),
+                                              "maxX": frame[i][2].item(),
+                                              "maxY": frame[i][3].item()},
                                  "class_id": class_id,
                                  "box_caption": self.class_name[class_id]})
-            wandb_image = wandb.Image(np.array(image, dtype=np.uint8), boxes={"predictions": {"box_data": box_data}})
-            self.wandb_run.log({f'image/{self.tag}_image': wandb_image})
-            self.wandb_num += 1
+            wandb_image = wandb.Image(np.array(image, dtype=np.uint8), boxes={"predictions": {"box_data": box_data}},
+                                      classes=wandb.Classes(self.wandb_class_screen))
+            self.wandb_image.append(wandb_image)
+            if self.wandb_count == self.wandb_image_num:
+                self.wandb_run.log({f'image/{self.tag}_image': self.wandb_image})
         return image, label_matrix_list, judge_matrix_list, label
 
     def _resize(self, image, frame, input_size):  # 将图片四周填充变为正方形，frame输入输出都为[[Cx,Cy,w,h]...](相对原图片的比例值)

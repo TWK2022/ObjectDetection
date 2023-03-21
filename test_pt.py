@@ -104,7 +104,7 @@ def test_pt():
                 if pred.shape[0] == 0:
                     print(f'{name_batch[i]}:None')
                     continue
-                pred[:, 0:2] = pred[:, 0:2] - 1 / 2 * pred[:, 2:4]  # (x_min,y_min,w,h)真实坐标
+                pred[:, 0:2] = pred[:, 0:2] - pred[:, 2:4] / 2  # (x_min,y_min,w,h)真实坐标
                 pred = nms(pred, args.iou_threshold)  # 非极大值抑制
                 frame = pred[:, 0:4]  # 边框
                 cls = np.argmax(pred[:, 5:], axis=1)  # 类别
