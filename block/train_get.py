@@ -93,6 +93,7 @@ def train_get(args, data_dict, model_dict, loss):
         val_loss, val_frame_loss, val_confidence_loss, val_class_loss, accuracy, precision, recall, m_ap, \
         nms_precision, nms_recall, nms_m_ap = val_get(args, val_dataloader, model, loss)
         # 保存
+        standard = model_dict['val_m_ap']
         model_dict['model'] = model
         model_dict['class'] = data_dict['class']
         model_dict['epoch'] = epoch
@@ -101,7 +102,7 @@ def train_get(args, data_dict, model_dict, loss):
         model_dict['val_m_ap'] = m_ap
         model_dict['val_nms_m_ap'] = nms_m_ap
         torch.save(model_dict, 'last.pt')  # 保存最后一次训练的模型
-        if m_ap > 0.25 and m_ap > model_dict['val_m_ap']:
+        if m_ap > 0.2 and m_ap > standard:
             torch.save(model_dict, args.save_name)  # 保存最佳模型
             print('\n| 保存最佳模型:{} | val_m_ap:{:.4f} |\n'.format(args.save_name, m_ap))
         # wandb
