@@ -95,8 +95,8 @@ def train_get(args, data_dict, model_dict, loss):
         # 保存
         standard = model_dict['val_m_ap']
         model_dict['model'] = model
-        model_dict['class'] = data_dict['class']
         model_dict['epoch'] = epoch
+        model_dict['class'] = data_dict['class']
         model_dict['train_loss'] = train_loss
         model_dict['val_loss'] = val_loss
         model_dict['val_m_ap'] = m_ap
