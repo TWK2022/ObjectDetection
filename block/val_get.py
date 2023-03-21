@@ -30,9 +30,8 @@ def val_get(args, val_dataloader, model, loss):
             val_confidence_loss += confidence_loss.item()
             val_class_loss += class_loss.item()
             # 计算指标
-            # 非极大值抑制前(所有输出)
             tp, tn, fp, fn = tp_tn_fp_fn(pred_batch, true_batch, judge_batch, args.confidence_threshold,
-                                         args.iou_threshold)
+                                         args.iou_threshold)  # 非极大值抑制前(所有输出)
             tp_all += tp
             tn_all += tn
             fp_all += fp
@@ -40,7 +39,7 @@ def val_get(args, val_dataloader, model, loss):
             # 非极大值抑制后(最终显示的框)
             for i in range(len(pred_batch[0])):  # 遍历每张图片
                 true = label_list[i].to(args.device)
-                pred = [_[i] for _ in pred_batch]  # (Cx,Cy,w,h)
+                pred = [_[i] for _ in pred_batch]  # (Cx,Cy,w,h)真实坐标
                 pred = confidence_screen(pred, args.confidence_threshold)  # 置信度筛选
                 if len(pred) == 0:  # 该图片没有预测值
                     nms_fn_all += len(true)

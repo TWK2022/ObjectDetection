@@ -9,14 +9,20 @@ from block.val_get import val_get
 def train_get(args, data_dict, model_dict, loss):
     model = model_dict['model'].to(args.device, non_blocking=args.latch)
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    train_dataloader = torch.utils.data.DataLoader(torch_dataset(args, 'train', data_dict['train'], data_dict['class']),
+    train_dataloader = torch.utils.data.DataLoader(torch_dataset(args, 'train', data_dict['train']),
                                                    batch_size=args.batch, shuffle=True, drop_last=True,
                                                    pin_memory=args.latch, num_workers=args.num_worker,
                                                    collate_fn=collate_fn)
-    val_dataloader = torch.utils.data.DataLoader(torch_dataset(args, 'val', data_dict['val'], data_dict['class']),
+    val_dataloader = torch.utils.data.DataLoader(torch_dataset(args, 'val', data_dict['val']),
                                                  batch_size=args.batch, shuffle=False, drop_last=False,
                                                  pin_memory=args.latch, num_workers=args.num_worker,
                                                  collate_fn=collate_fn)
+    # wandb
+    if args.wandb:
+        wandb_image_list = []  # 记录所有的wandb_image最后一起添加(最多添加args.wandb_image_num张)
+        wandb_class_name = {}  # 用于给边框添加标签名字
+        for i in range(len(data_dict['class'])):
+            wandb_class_name[i] = data_dict['class'][i]
     for epoch in range(args.epoch):
         # 训练
         print(f'\n-----------------------第{epoch + 1}轮-----------------------')
@@ -26,6 +32,7 @@ def train_get(args, data_dict, model_dict, loss):
         train_confidence_loss = 0  # 记录置信度框损失
         train_class_loss = 0  # 记录类别损失
         for item, (image_batch, true_batch, judge_batch, label_list) in enumerate(tqdm.tqdm(train_dataloader)):
+            wandb_image_batch = image_batch.cpu().numpy().astype(np.uint8) if args.wandb else None
             image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到设备上
             for i in range(len(true_batch)):  # 将标签矩阵放到对应设备上
                 true_batch[i] = true_batch[i].to(args.device, non_blocking=args.latch)
@@ -48,6 +55,29 @@ def train_get(args, data_dict, model_dict, loss):
             train_frame_loss += frame_loss.item()
             train_confidence_loss += confidence_loss.item()
             train_class_loss += class_loss.item()
+            # wandb
+            if args.wandb and len(wandb_image_list) < args.wandb_image_num:
+                for i in range(len(wandb_image_batch)):  # 遍历每一张图片
+                    image = wandb_image_batch[i]
+                    frame = label_list[i][:, 0:4] / args.input_size  # (Cx,Cy,w,h)相对坐标
+                    frame[:, 0:2] = frame[:, 0:2] - frame[:, 2:4] / 2
+                    frame[:, 2:4] = frame[:, 0:2] + frame[:, 2:4]  # (x_min,y_min,x_max,y_max)相对坐标
+                    cls = torch.argmax(label_list[i][:, 5:], dim=1)
+                    box_data = []
+                    for i in range(len(frame)):
+                        class_id = cls[i].item()
+                        box_data.append({"position": {"minX": frame[i][0].item(),
+                                                      "minY": frame[i][1].item(),
+                                                      "maxX": frame[i][2].item(),
+                                                      "maxY": frame[i][3].item()},
+                                         "class_id": class_id,
+                                         "box_caption": wandb_class_name[class_id]})
+                    wandb_image = wandb.Image(image, boxes={"predictions": {"box_data": box_data,
+                                                                            'class_labels': wandb_class_name}})
+                    wandb_image_list.append(wandb_image)
+                    if len(wandb_image_list) == args.wandb_image_num:
+                        args.wandb_run.log({f'image/train_image': wandb_image_list})
+                        break
         # 计算平均损失
         train_loss = train_loss / (item + 1)
         train_frame_loss = train_frame_loss / (item + 1)
@@ -95,7 +125,7 @@ def train_get(args, data_dict, model_dict, loss):
 
 
 class torch_dataset(torch.utils.data.Dataset):
-    def __init__(self, args, tag, data, class_name):
+    def __init__(self, args, tag, data):
         output_num_dict = {'yolov5': (3, 3, 3),
                            'yolov7': (3, 3, 3)
                            }  # 输出层数量，如(3, 3, 3)代表有三个大层，每层有三个小层
@@ -121,29 +151,9 @@ class torch_dataset(torch.utils.data.Dataset):
         self.tag = tag  # 用于区分是训练集还是验证集
         self.data = data
         self.mosaic = args.mosaic
-        # wandb可视化部分
-        self.wandb = args.wandb
-        if self.wandb:
-            self.wandb_run = args.wandb_run
-            self.wandb_count = 0  # 用于限制添加的图片数量(最多添加args.wandb_image_num张)
-            self.wandb_image_num = args.wandb_image_num
-            self.wandb_image = []  # 记录所有的image最后一起添加
-            self.wandb_class_name = {}  # 用于给边框添加标签名字
-            for i in range(len(class_name)):
-                self.wandb_class_name[i] = class_name[i]
 
     def __len__(self):
         return len(self.data)
-
-    def draw(self, image, frame):  # 输入(x_min,y_min,w,h)真实坐标
-        image = image.astype(np.uint8)
-        for i in range(len(frame)):
-            a = (int(frame[i][0]), int(frame[i][1]))
-            b = (int(frame[i][0] + frame[i][2]), int(frame[i][1] + frame[i][3]))
-            cv2.rectangle(image, a, b, color=(0, 255, 0), thickness=2)
-        cv2.imshow('pred', image)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
 
     def __getitem__(self, index):
         # 图片和标签处理，边框坐标处理为真实的Cx,Cy,w,h(归一化、减均值、除以方差、调维度等在模型中完成)
@@ -151,13 +161,12 @@ class torch_dataset(torch.utils.data.Dataset):
             index_mix = torch.randperm(len(self.data))[0:4]
             index_mix[0] = index
             image, frame, label = self._mosaic(index_mix)  # 马赛克增强，相对坐标(Cx,Cy,w,h)变为真实坐标
-            image = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_BGR2RGB)  # 转为RGB通道
         else:
             image = cv2.imread(self.data[index][0])  # 读取图片
             label = self.data[index][1].copy()  # 读取原始标签([:,类别号+Cx,Cy,w,h]，边框为相对边长的比例值)
             image, frame = self._resize(image.astype(np.uint8), label[:, 1:],
                                         self.input_size)  # 缩放和填充图片，相对坐标(Cx,Cy,w,h)变为真实坐标
-            image = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_BGR2RGB)  # 转为RGB通道
+        image = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_BGR2RGB)  # 转为RGB通道
         image = torch.tensor(image, dtype=torch.float32)
         # 边框:转换为张量
         frame = torch.tensor(frame, dtype=torch.float32)
@@ -210,28 +219,6 @@ class torch_dataset(torch.utils.data.Dataset):
             # 存放每个输出层的结果
             label_matrix_list[i] = label_matrix
             judge_matrix_list[i] = judge_matrix
-        # 使用wandb添加图片
-        if self.wandb and self.wandb_count < self.wandb_image_num:
-            self.wandb_count += 1
-            box_data = []
-            cls_num = torch.argmax(cls, dim=1)
-            frame[:, 0:2] = frame[:, 0:2] - frame[:, 2:4] / 2
-            frame[:, 2:4] = frame[:, 0:2] + frame[:, 2:4]
-            frame = frame / self.input_size  # (x_min,y_min,x_max,y_max)相对坐标
-            for i in range(len(frame)):
-                class_id = cls_num[i].item()
-                box_data.append({"position": {"minX": frame[i][0].item(),
-                                              "minY": frame[i][1].item(),
-                                              "maxX": frame[i][2].item(),
-                                              "maxY": frame[i][3].item()},
-                                 "class_id": class_id,
-                                 "box_caption": self.wandb_class_name[class_id]})
-            wandb_image = wandb.Image(np.array(image, dtype=np.uint8),
-                                      boxes={"predictions": {"box_data": box_data,
-                                                             'class_labels': self.wandb_class_name}})
-            self.wandb_image.append(wandb_image)
-            if self.wandb_count == self.wandb_image_num:
-                self.wandb_run.log({f'image/{self.tag}_image': self.wandb_image})
         return image, label_matrix_list, judge_matrix_list, label
 
     def _resize(self, image, frame, input_size):  # 将图片四周填充变为正方形，frame输入输出都为[[Cx,Cy,w,h]...](相对原图片的比例值)
@@ -292,16 +279,16 @@ class torch_dataset(torch.utils.data.Dataset):
         return image_resize, frame, label
 
 
-def collate_fn(batch):  # 自定义__getitem__合并方式
+def collate_fn(getitem_batch):  # 自定义__getitem__合并方式
     image_list = []
-    label_matrix_list = [[] for _ in range(len(batch[0][1]))]
-    judge_matrix_list = [[] for _ in range(len(batch[0][2]))]
+    label_matrix_list = [[] for _ in range(len(getitem_batch[0][1]))]
+    judge_matrix_list = [[] for _ in range(len(getitem_batch[0][2]))]
     label_list = []
-    for i in range(len(batch)):  # 遍历所有__getitem__
-        image = batch[i][0]
-        label_matrix = batch[i][1]
-        judge_matrix = batch[i][2]
-        label = batch[i][3]
+    for i in range(len(getitem_batch)):  # 遍历所有__getitem__
+        image = getitem_batch[i][0]
+        label_matrix = getitem_batch[i][1]
+        judge_matrix = getitem_batch[i][2]
+        label = getitem_batch[i][3]
         image_list.append(image)
         for j in range(len(label_matrix)):  # 遍历每个输出层
             label_matrix_list[j].append(label_matrix[j])
@@ -312,4 +299,4 @@ def collate_fn(batch):  # 自定义__getitem__合并方式
     for i in range(len(label_matrix_list)):
         label_matrix_list[i] = torch.stack(label_matrix_list[i], dim=0)
         judge_matrix_list[i] = torch.stack(judge_matrix_list[i], dim=0)
-    return image_batch, label_matrix_list, judge_matrix_list, label_list
+    return image_batch, label_matrix_list, judge_matrix_list, label_list  # 均为(Cx,Cy,w,h)真实坐标
