@@ -128,10 +128,9 @@ class torch_dataset(torch.utils.data.Dataset):
             self.wandb_count = 0  # 用于限制添加的图片数量(最多添加args.wandb_image_num张)
             self.wandb_image_num = args.wandb_image_num
             self.wandb_image = []  # 记录所有的image最后一起添加
-            self.class_name = class_name  # 用于给边框添加标签名字
-            self.wandb_class_screen = []  # 用于根据标签名字筛选边框
-            for i in range(len(self.class_name)):
-                self.wandb_class_screen.append({'id': i, 'name': self.class_name[i]})
+            self.wandb_class_name = {}  # 用于给边框添加标签名字
+            for i in range(len(class_name)):
+                self.wandb_class_name[i] = class_name[i]
 
     def __len__(self):
         return len(self.data)
@@ -226,9 +225,10 @@ class torch_dataset(torch.utils.data.Dataset):
                                               "maxX": frame[i][2].item(),
                                               "maxY": frame[i][3].item()},
                                  "class_id": class_id,
-                                 "box_caption": self.class_name[class_id]})
-            wandb_image = wandb.Image(np.array(image, dtype=np.uint8), boxes={"predictions": {"box_data": box_data}},
-                                      classes=wandb.Classes(self.wandb_class_screen))
+                                 "box_caption": self.wandb_class_name[class_id]})
+            wandb_image = wandb.Image(np.array(image, dtype=np.uint8),
+                                      boxes={"predictions": {"box_data": box_data,
+                                                             'class_labels': self.wandb_class_name}})
             self.wandb_image.append(wandb_image)
             if self.wandb_count == self.wandb_image_num:
                 self.wandb_run.log({f'image/{self.tag}_image': self.wandb_image})
