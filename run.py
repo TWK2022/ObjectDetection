@@ -91,8 +91,8 @@ if __name__ == '__main__':
     # 损失
     loss = loss_get(args)
     # 摘要
-    print('| 训练集:{} | 验证集:{} | 模型:{} | 初始学习率:{} |'
-          .format(len(data_dict['train']), len(data_dict['val']), args.model, args.lr))
+    print('| 训练集:{} | 验证集:{} | 模型:{} | 输入尺寸:{} | 初始学习率:{} |'
+          .format(len(data_dict['train']), len(data_dict['val']), args.model, args.input_size, args.lr))
     # 训练(包括图片读取和预处理、训练、验证、保存模型)
     model_dict = train_get(args, data_dict, model_dict, loss)
     # 显示结果
