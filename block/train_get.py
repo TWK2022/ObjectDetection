@@ -57,7 +57,7 @@ def train_get(args, data_dict, model_dict, loss):
             train_confidence_loss += confidence_loss.item()
             train_class_loss += class_loss.item()
             # wandb
-            if args.wandb and len(wandb_image_list) < args.wandb_image_num:
+            if args.wandb and epoch == 0 and len(wandb_image_list) < args.wandb_image_num:
                 for i in range(len(wandb_image_batch)):  # 遍历每一张图片
                     image = wandb_image_batch[i]
                     frame = label_list[i][:, 0:4] / args.input_size  # (Cx,Cy,w,h)相对坐标
