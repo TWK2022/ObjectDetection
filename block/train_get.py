@@ -77,7 +77,6 @@ def train_get(args, data_dict, model_dict, loss):
                                                                             'class_labels': wandb_class_name}})
                     wandb_image_list.append(wandb_image)
                     if len(wandb_image_list) == args.wandb_image_num:
-                        args.wandb_run.log({f'image/train_image': wandb_image_list})
                         break
         # 计算平均损失
         train_loss = train_loss / (item + 1)
@@ -108,21 +107,25 @@ def train_get(args, data_dict, model_dict, loss):
             print('\n| 保存最佳模型:{} | val_m_ap:{:.4f} |\n'.format(args.save_name, m_ap))
         # wandb
         if args.wandb:
-            args.wandb_run.log({'train/train_loss': train_loss,
-                                'train/train_frame_loss': train_frame_loss,
-                                'train/train_confidence_loss': train_confidence_loss,
-                                'train/train_class_loss': train_class_loss,
-                                'val_loss/val_loss': val_loss,
-                                'val_loss/val_frame_loss': val_frame_loss,
-                                'val_loss/val_confidence_loss': val_confidence_loss,
-                                'val_loss/val_class_loss': val_class_loss,
-                                'val_metric/val_accuracy': accuracy,
-                                'val_metric/val_precision': precision,
-                                'val_metric/val_recall': recall,
-                                'val_metric/val_m_ap': m_ap,
-                                'val_nms_metric/val_nms_precision': nms_precision,
-                                'val_nms_metric/val_nms_recall': nms_recall,
-                                'val_nms_metric/val_nms_m_ap': nms_m_ap})
+            wandb_log = {}
+            if epoch == 0:
+                wandb_log.update({f'image/train_image': wandb_image_list})
+            wandb_log.update({'train/train_loss': train_loss,
+                              'train/train_frame_loss': train_frame_loss,
+                              'train/train_confidence_loss': train_confidence_loss,
+                              'train/train_class_loss': train_class_loss,
+                              'val_loss/val_loss': val_loss,
+                              'val_loss/val_frame_loss': val_frame_loss,
+                              'val_loss/val_confidence_loss': val_confidence_loss,
+                              'val_loss/val_class_loss': val_class_loss,
+                              'val_metric/val_accuracy': accuracy,
+                              'val_metric/val_precision': precision,
+                              'val_metric/val_recall': recall,
+                              'val_metric/val_m_ap': m_ap,
+                              'val_nms_metric/val_nms_precision': nms_precision,
+                              'val_nms_metric/val_nms_recall': nms_recall,
+                              'val_nms_metric/val_nms_m_ap': nms_m_ap})
+            args.wandb_run.log(wandb_log)
     return model_dict
 
 
