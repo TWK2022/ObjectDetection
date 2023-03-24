@@ -198,11 +198,15 @@ class head(torch.nn.Module):  # in_->out_，len->len
 
 
 class decode(torch.nn.Module):  # 原始输出->真实坐标(Cx,Cy,w,h)
-    def __init__(self, grid, stride, anchor):
+    def __init__(self, input_size):
         super().__init__()
-        self.grid = grid
-        self.stride = stride
-        self.anchor = anchor
+        self.stride = (8, 16, 32)
+        output_size = [int(input_size // i) for i in self.stride]
+        self.anchor = (((12, 16), (19, 36), (40, 28)), ((36, 75), (76, 55), (72, 146)),
+                       ((142, 110), (192, 243), (459, 401)))
+        self.grid = [0, 0, 0]
+        for i in range(3):
+            self.grid[i] = torch.arange(output_size[i])
 
     def forward(self, output):
         device = output[0].device

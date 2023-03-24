@@ -5,20 +5,15 @@ from model.layer import image_deal, cbs, elan, elan_h, mp, sppcspc, concat, head
 class yolov7(torch.nn.Module):
     def __init__(self, args):
         super().__init__()
+        self.input_size = args.input_size
         self.stride = (8, 16, 32)
         self.output_num = (3, 3, 3)  # 每个输出层的小层数
-        self.anchor = (((12, 16), (19, 36), (40, 28)), ((36, 75), (76, 55), (72, 146)),
-                       ((142, 110), (192, 243), (459, 401)))
-        self.output_size = [int(args.input_size // i) for i in self.stride]  # 每个输出层的尺寸，如(80,40,20)
+        self.output_size = [int(self.input_size // i) for i in self.stride]  # 每个输出层的尺寸，如(80,40,20)
         self.output_class = args.output_class
         dim_dict = {'n': 8, 's': 16, 'm': 32, 'l': 64}
         n_dict = {'n': 1, 's': 1, 'm': 2, 'l': 3}
         dim = dim_dict[args.model_type]
         n = n_dict[args.model_type]
-        # 解码网格
-        self.grid = [0, 0, 0]
-        for i in range(3):
-            self.grid[i] = torch.arange(self.output_size[i])
         # 网络结构
         self.image_deal = image_deal()
         self.l0 = cbs(3, dim, 3, 1)
@@ -58,7 +53,7 @@ class yolov7(torch.nn.Module):
         self.output0 = head(4 * dim, 3 * (5 + self.output_class))
         self.output1 = head(8 * dim, 3 * (5 + self.output_class))
         self.output2 = head(16 * dim, 3 * (5 + self.output_class))
-        self.decode = decode(self.grid, self.stride, self.anchor)
+        self.decode = decode(self.input_size)
 
     def forward(self, x):
         # 输入(batch,640,640,3)
