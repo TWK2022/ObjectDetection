@@ -1,10 +1,10 @@
 # 数据需准备成以下格式(标准YOLO格式)
-# ├── 数据集路径：data_path
-#     └── image：存放所有图片
-#     └── label：存放所有图片的标签，名称:图片名.txt，内容:类别号 x_center y_center w h(相对图片的比例值)
-#     └── train.txt：训练图片的绝对路径(或相对data_path下路径)
-#     └── val.txt：验证图片的绝对路径(或相对data_path下路径)
-#     └── class.txt：所有的类别名称
+# ├── 数据集路径:data_path
+#     └── image:存放所有图片
+#     └── label:存放所有图片的标签，名称:图片名.txt，内容:类别号 x_center y_center w h(相对图片的比例值)
+#     └── train.txt:训练图片的绝对路径(或相对data_path下路径)
+#     └── val.txt:验证图片的绝对路径(或相对data_path下路径)
+#     └── class.txt:所有的类别名称
 # class.csv内容如下:
 # 类别1
 # 类别2
