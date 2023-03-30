@@ -1,3 +1,4 @@
+# 根据yolov7改编:https://github.com/WongKinYiu/yolov7
 import torch
 from model.layer import image_deal, cbs, elan, elan_h, mp, sppcspc, concat, head, decode
 

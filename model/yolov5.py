@@ -1,3 +1,4 @@
+# 根据yolov5改编:https://github.com/ultralytics/yolov5
 import torch
 from model.layer import image_deal, cbs, c3, sppf, concat, head, decode
 
