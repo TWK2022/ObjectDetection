@@ -9,15 +9,15 @@ def center_to_min(pred, true):  # (Cx,Cy)->(x_min,y_min)
 
 
 def confidence_screen(pred, confidence_threshold):
-    layer_num = len(pred)
     result = []
-    for i in range(layer_num):  # 对一张图片的每个输出层分别进行操作
+    for i in range(len(pred)):  # 对一张图片的每个输出层分别进行操作
         judge = torch.where(pred[i][..., 4] > confidence_threshold, True, False)
         result.append((pred[i][judge]))
     result = torch.concat(result, dim=0)
     if result.shape[0] == 0:
         return result
-    result = torch.stack(sorted(list(result), key=lambda x: x[4], reverse=True))  # 按置信度排序
+    index = torch.argsort(result[:, 4], dim=0, descending=True)
+    result = result[index]
     return result
 
 
@@ -63,17 +63,19 @@ def nms(pred, iou_threshold):  # 输入为(batch,(x_min,y_min,w,h))相对/真实
 
 
 def nms_tp_fn_fp(pred, true, iou_threshold):  # 输入为(batch,(x_min,y_min,w,h,其他,类别号))相对/真实坐标
+    pred_cls = torch.argmax(pred[:, 5:], dim=1)
+    true_cls = torch.argmax(true[:, 5:], dim=1)
     tp = 0
     fn = 0
     for i in range(len(true)):
         target = true[i]
         iou_all = iou_single(pred, target)
-        judge_tp = torch.where((iou_all > iou_threshold) & (pred[:, 4] == target[4]), True, False)
-        judge_fn = torch.where((iou_all > iou_threshold) & (pred[:, 4] != target[4]), True, False)
+        judge_tp = torch.where((iou_all > iou_threshold) & (pred_cls == true_cls[i]), True, False)
+        judge_fn = torch.where((iou_all > iou_threshold) & (pred_cls != true_cls[i]), True, False)
         tp += len(pred[judge_tp])  # 最多只有一个
         fn += len(pred[judge_fn])  # 最多只有一个
     fp = len(pred) - tp - fn
-    return tp, fn, fp
+    return tp, fp, fn
 
 
 def tp_tn_fp_fn(pred, true, judge, confidence_threshold, iou_threshold):  # 对网络输出(单个/批量)求非极大值抑制前的指标

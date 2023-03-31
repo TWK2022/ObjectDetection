@@ -192,7 +192,7 @@ class image_deal(torch.nn.Module):  # 归一化
         return x
 
 
-class decode(torch.nn.Module):  # 原始输出->真实坐标(Cx,Cy,w,h)
+class decode(torch.nn.Module):  # (Cx,Cy,w,h,confidence...)原始输出->(Cx,Cy,w,h,confidence...)真实坐标
     def __init__(self, input_size):
         super().__init__()
         self.stride = (8, 16, 32)
@@ -210,7 +210,7 @@ class decode(torch.nn.Module):  # 原始输出->真实坐标(Cx,Cy,w,h)
         for i in range(3):
             self.grid[i] = self.grid[i].to(device)  # 放到对应的设备上
             # 中心坐标[0-1]->[-0.5-1.5]->[-0.5*stride-80/40/20.5*stride]
-            output[i][..., 0:4] = self.frame_sigmoid(output[i][..., 0:4])  # 边框输出归一化
+            output[i] = self.frame_sigmoid(output[i])  # 边框输出归一化
             output[i][..., 0] = (2 * output[i][..., 0] - 0.5 + self.grid[i].unsqueeze(1)) * self.stride[i]
             output[i][..., 1] = (2 * output[i][..., 1] - 0.5 + self.grid[i]) * self.stride[i]
             # 遍历每一个大层中的小层

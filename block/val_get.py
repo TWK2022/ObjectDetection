@@ -1,12 +1,12 @@
 import tqdm
 import torch
 from model.layer import decode
-from block.metric_get import tp_tn_fp_fn, nms_tp_fn_fp, confidence_screen, nms
+from block.metric_get import tp_tn_fp_fn, confidence_screen, nms, nms_tp_fn_fp
 
 
-def val_get(args, val_dataloader, model, loss):
+def val_get(args, val_dataloader, model, loss, ema):
     with torch.no_grad():
-        model.eval()
+        model = ema.ema if args.ema else model.eval()
         decode_model = decode(args.input_size)
         val_loss = 0  # 记录验证损失
         val_frame_loss = 0  # 记录边框损失
@@ -17,8 +17,8 @@ def val_get(args, val_dataloader, model, loss):
         fp_all = 0
         fn_all = 0
         nms_tp_all = 0
-        nms_fn_all = 0
         nms_fp_all = 0
+        nms_fn_all = 0
         for item, (image_batch, true_batch, judge_batch, label_list) in enumerate(tqdm.tqdm(val_dataloader)):
             image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到设备上
             for i in range(len(true_batch)):  # 将标签矩阵放到对应设备上
@@ -31,14 +31,14 @@ def val_get(args, val_dataloader, model, loss):
             val_confidence_loss += confidence_loss.item()
             val_class_loss += class_loss.item()
             # 计算指标
-            tp, tn, fp, fn = tp_tn_fp_fn(pred_batch, true_batch, judge_batch, args.confidence_threshold,
-                                         args.iou_threshold)  # 非极大值抑制前(所有输出)
+            pred_batch = decode_model(pred_batch)  # (Cx,Cy,w,h,confidence...)原始输出->(Cx,Cy,w,h,confidence...)真实坐标
+            # 非极大值抑制前(所有输出)
+            tp, tn, fp, fn = tp_tn_fp_fn(pred_batch, true_batch, judge_batch, 0.5, args.iou_threshold)
             tp_all += tp
             tn_all += tn
             fp_all += fp
             fn_all += fn
             # 非极大值抑制后(最终显示的框)
-            pred_batch = decode_model(pred_batch)
             for i in range(len(pred_batch[0])):  # 遍历每张图片
                 true = label_list[i].to(args.device)
                 pred = [_[i] for _ in pred_batch]  # (Cx,Cy,w,h)真实坐标
@@ -51,7 +51,7 @@ def val_get(args, val_dataloader, model, loss):
                 if len(true) == 0:  # 该图片没有标签
                     nms_fp_all += len(pred)
                     continue
-                nms_tp, nms_fn, nms_fp = nms_tp_fn_fp(pred, true, args.iou_threshold)
+                nms_tp, nms_fp, nms_fn = nms_tp_fn_fp(pred, true, args.iou_threshold)
                 nms_tp_all += nms_tp
                 nms_fn_all += nms_fn
                 nms_fp_all += nms_fp

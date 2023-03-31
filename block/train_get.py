@@ -4,10 +4,12 @@ import wandb
 import torch
 import numpy as np
 from block.val_get import val_get
+from block.ModelEMA import ModelEMA
 
 
 def train_get(args, data_dict, model_dict, loss):
     model = model_dict['model'].to(args.device, non_blocking=args.latch)
+    ema = ModelEMA(model) if args.ema else None  # 使用平均指数移动(EMA)调整参数，不能将ema放到args中，否则会导致模型保存出错
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
     optimizer.load_state_dict(model_dict['optimizer_state_dict']) if model_dict['optimizer_state_dict'] else None
     train_dataloader = torch.utils.data.DataLoader(torch_dataset(args, 'train', data_dict['train']),
@@ -52,6 +54,8 @@ def train_get(args, data_dict, model_dict, loss):
                 optimizer.zero_grad()
                 loss_batch.backward()
                 optimizer.step()
+            # 调整参数，ema.updates会自动+1
+            ema.update(model) if args.ema else None
             # 记录损失
             train_loss += loss_batch.item()
             train_frame_loss += frame_loss.item()
@@ -92,9 +96,9 @@ def train_get(args, data_dict, model_dict, loss):
         torch.cuda.empty_cache()
         # 验证
         val_loss, val_frame_loss, val_confidence_loss, val_class_loss, accuracy, precision, recall, m_ap, \
-        nms_precision, nms_recall, nms_m_ap = val_get(args, val_dataloader, model, loss)
+        nms_precision, nms_recall, nms_m_ap = val_get(args, val_dataloader, model, loss, ema)
         # 保存
-        model_dict['model'] = model
+        model_dict['model'] = model.eval()
         model_dict['epoch'] += epoch
         model_dict['optimizer_state_dict'] = optimizer.state_dict()
         model_dict['class'] = data_dict['class']
