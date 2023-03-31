@@ -33,15 +33,15 @@ if args.float16:
 # -------------------------------------------------------------------------------------------------------------------- #
 # 程序
 def confidence_screen(pred, confidence_threshold):
-    layer_num = len(pred)
     result = []
-    for i in range(layer_num):  # 对一张图片的每个输出层分别进行操作
-        judge = np.where(pred[i][..., 4] > confidence_threshold, True, False)
+    for i in range(len(pred)):  # 对一张图片的每个输出层分别进行操作
+        judge = torch.where(pred[i][..., 4] > confidence_threshold, True, False)
         result.append((pred[i][judge]))
-    result = np.concatenate(result, axis=0)
+    result = torch.concat(result, dim=0)
     if result.shape[0] == 0:
         return result
-    result = np.stack(sorted(list(result), key=lambda x: x[4], reverse=True))  # 按置信度排序
+    index = torch.argsort(result[:, 4], dim=0, descending=True)
+    result = result[index]
     return result
 
 
@@ -62,17 +62,6 @@ def nms(pred, iou_threshold):  # 输入为(batch,(x_min,y_min,w,h))相对/真实
     pred = pred[index]
     pred[:, 2:4] = pred[:, 2:4] - pred[:, 0:2]  # (x_min,y_min,w,h)真实坐标
     return pred
-    # result = []
-    # while len(pred) > 0:
-    #     result.append(pred[0])  # 每轮开始时添加第一个到结果中
-    #     pred = pred[1:]
-    #     if len(pred) > 0:
-    #         target = result[-1]
-    #         iou_all = iou_single(pred, target)
-    #         judge = torch.where(iou_all < iou_threshold, True, False)
-    #         pred = pred[judge]
-    # pred = torch.stack(result, dim=0)
-    # return pred
 
 
 def draw(image, frame, cls, name):  # 输入(x_min,y_min,w,h)真实坐标
@@ -92,7 +81,7 @@ def test_pt():
     # 加载模型
     model_dict = torch.load(args.model_path, map_location='cpu')
     model = model_dict['model']
-    model = deploy(model)
+    model = deploy(model, args.input_size)
     model.half().eval().to(args.device) if args.float16 else model.float().eval().to(args.device)
     print('| 模型加载成功:{} |'.format(args.model_path))
     # 推理
@@ -109,16 +98,12 @@ def test_pt():
             # 对batch中的每张图片分别操作
             for i in range(len(pred_batch[0])):
                 pred = [_[i] for _ in pred_batch]  # (Cx,Cy,w,h)
-                pred = confidence_screen(pred, args.confidence_threshold)[:100]  # 置信度筛选，最多取前100
+                pred = confidence_screen(pred, args.confidence_threshold)  # 置信度筛选
                 if pred.shape[0] == 0:
                     print(f'{name_batch[i]}:None')
                     continue
                 pred[:, 0:2] = pred[:, 0:2] - pred[:, 2:4] / 2  # (x_min,y_min,w,h)真实坐标
-                pred[:, 2:4] = pred[:, 0:2] + pred[:, 2:4]  # (x_min,y_min,x_max,y_max)真实坐标
-                index = torchvision.ops.nms(pred[:, 0:4], pred[:, 4], args.iou_threshold)[:100]  # 非极大值抑制，最多100
-                pred = pred[index]
-                pred[:, 2:4] = pred[:, 2:4] - pred[:, 0:2]  # (x_min,y_min,w,h)真实坐标
-                # pred = nms(pred, args.iou_threshold)  # 非极大值抑制
+                pred = nms(pred, args.iou_threshold)  # 非极大值抑制
                 frame = pred[:, 0:4]  # 边框
                 cls = np.argmax(pred[:, 5:], axis=1)  # 类别
                 draw(image_all[i], frame, cls, name_batch[i])
