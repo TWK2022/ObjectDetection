@@ -57,16 +57,22 @@ def iou_single(A, B):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
 
 
 def nms(pred, iou_threshold):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
-    result = []
-    while len(pred) > 0:
-        result.append(pred[0])  # 每轮开始时添加第一个到结果中
-        pred = pred[1:]
-        if len(pred) > 0:
-            target = result[-1]
-            iou_all = iou_single(pred, target)
-            judge = np.where(iou_all < iou_threshold, True, False)
-            pred = pred[judge]
-    return np.stack(result, axis=0)
+    pred[:, 2:4] = pred[:, 0:2] + pred[:, 2:4]  # (x_min,y_min,x_max,y_max)真实坐标
+    index = torchvision.ops.nms(pred[:, 0:4], pred[:, 4], iou_threshold)[:100]  # 非极大值抑制，最多100
+    pred = pred[index]
+    pred[:, 2:4] = pred[:, 2:4] - pred[:, 0:2]  # (x_min,y_min,w,h)真实坐标
+    return pred
+    # result = []
+    # while len(pred) > 0:
+    #     result.append(pred[0])  # 每轮开始时添加第一个到结果中
+    #     pred = pred[1:]
+    #     if len(pred) > 0:
+    #         target = result[-1]
+    #         iou_all = iou_single(pred, target)
+    #         judge = torch.where(iou_all < iou_threshold, True, False)
+    #         pred = pred[judge]
+    # pred = torch.stack(result, dim=0)
+    # return pred
 
 
 def draw(image, frame, cls, name):  # 输入(x_min,y_min,w,h)真实坐标
