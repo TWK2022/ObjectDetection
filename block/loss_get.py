@@ -35,7 +35,7 @@ class loss_prepare(object):
                 pred_judge, true_judge = self._center_to_min(pred_judge, true_judge)  # Cx,Cy转为x_min,y_min
                 frame_add = self.loss_frame(pred_judge[:, 0:4], true_judge[:, 0:4])  # 边框损失(只计算需要的)
                 confidence_add = self.loss_confidence(pred[i][..., 4], true[i][..., 4])  # 置信度损失(计算所有的)
-                confidence_add += self.loss_confidence_target(pred_judge[i][..., 4], true_judge[i][..., 4]) * 0.2
+                confidence_add += self.loss_confidence_target(pred_judge[i][..., 4], true_judge[i][..., 4]) * 0.1
                 class_add = self.loss_class(pred_judge[:, 5:], true_judge[:, 5:])  # 分类损失(只计算需要的)
                 frame_loss += self.loss_weight[i][0] * self.loss_weight[i][1] * (1 - torch.mean(frame_add))  # 总边框损失
                 confidence_loss += self.loss_weight[i][0] * self.loss_weight[i][2] * confidence_add  # 总置信度损失
