@@ -1,20 +1,6 @@
 import torch
 
 
-class image_deal(torch.nn.Module):  # 归一化、减均值、除以方差
-    def __init__(self):
-        super().__init__()
-        self.rgb_mean = (0.406, 0.456, 0.485)
-        self.rgb_std = (0.225, 0.224, 0.229)
-
-    def forward(self, x):
-        x[..., 0] = (x[..., 0] / 255 - self.rgb_mean[0]) / self.rgb_std[0]
-        x[..., 1] = (x[..., 1] / 255 - self.rgb_mean[1]) / self.rgb_std[1]
-        x[..., 2] = (x[..., 2] / 255 - self.rgb_mean[2]) / self.rgb_std[2]
-        x = x.permute(0, 3, 1, 2)
-        return x
-
-
 class concat(torch.nn.Module):
     def __init__(self, dim=1):
         super().__init__()
@@ -190,11 +176,19 @@ class head(torch.nn.Module):  # in_->out_，len->len
     def __init__(self, in_, out_):
         super().__init__()
         self.output = torch.nn.Conv2d(in_, out_, kernel_size=1, stride=1, padding=0)
-        self.normalization = torch.nn.Sigmoid()
 
     def forward(self, x):
         x = self.output(x)
-        x = self.normalization(x)
+        return x
+
+
+class image_deal(torch.nn.Module):  # 归一化
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        x = x / 255
+        x = x.permute(0, 3, 1, 2)
         return x
 
 
@@ -208,6 +202,7 @@ class decode(torch.nn.Module):  # 原始输出->真实坐标(Cx,Cy,w,h)
         self.grid = [0, 0, 0]
         for i in range(3):
             self.grid[i] = torch.arange(output_size[i])
+        self.frame_sigmoid = torch.nn.Sigmoid()
 
     def forward(self, output):
         device = output[0].device
@@ -215,10 +210,25 @@ class decode(torch.nn.Module):  # 原始输出->真实坐标(Cx,Cy,w,h)
         for i in range(3):
             self.grid[i] = self.grid[i].to(device)  # 放到对应的设备上
             # 中心坐标[0-1]->[-0.5-1.5]->[-0.5*stride-80/40/20.5*stride]
+            output[i][..., 0:4] = self.frame_sigmoid(output[i][..., 0:4])  # 边框输出归一化
             output[i][..., 0] = (2 * output[i][..., 0] - 0.5 + self.grid[i].unsqueeze(1)) * self.stride[i]
             output[i][..., 1] = (2 * output[i][..., 1] - 0.5 + self.grid[i]) * self.stride[i]
             # 遍历每一个大层中的小层
             for j in range(3):
-                output[i][:, j, ..., 2] = 4 * output[i][:, j, ..., 2] * self.anchor[i][j][0]  # [0-1]->[0-4*anchor]
-                output[i][:, j, ..., 3] = 4 * output[i][:, j, ..., 3] * self.anchor[i][j][1]  # [0-1]->[0-4*anchor]
+                output[i][:, j, ..., 2] = 4 * output[i][:, j, ..., 2] ** 2 * self.anchor[i][j][0]  # [0-1]->[0-4*anchor]
+                output[i][:, j, ..., 3] = 4 * output[i][:, j, ..., 3] ** 2 * self.anchor[i][j][1]  # [0-1]->[0-4*anchor]
         return output
+
+
+class deploy(torch.nn.Module):
+    def __init__(self, model, input_size):
+        super().__init__()
+        self.image_deal = image_deal()
+        self.model = model
+        self.decode = decode(input_size)
+
+    def forward(self, x):
+        x = self.image_deal(x)
+        x = self.model(x)
+        x = self.decode(x)
+        return x

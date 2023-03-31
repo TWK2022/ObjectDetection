@@ -1,11 +1,9 @@
-## pytorch图片分类训练代码
->!目前只实现了基本训练和预测功能!  
+## pytorch目标检测训练框架
 >代码兼容性较强，使用的是一些基本的库、基础的函数  
 >在argparse中可以选择使用wandb，能在wandb网站中生成可视化的训练过程  
 >输入模型的图片要为固定大小、RGB通道(如batch,640,640,3)，图片四周的填充值为(127,127,127)  
 >归一化、减均值、除以方差、维度变换会在模型中会自动完成  
 >计算指标使用的是nms前/后的输出框，两种计算方式  
->github链接:https://github.com/TWK2022/ObjectDetection
 ### 数据格式如下  
 >(标准YOLO格式)  
 >├── 数据集路径：data_path  
@@ -20,3 +18,7 @@
 >使用训练好的pt模型预测
 ### 3，export_onnx.py
 >将pt模型导出为onnx模型
+### 其他
+>github链接:https://github.com/TWK2022/ObjectDetection  
+>学习笔记:https://github.com/TWK2022/notebook  
+>邮箱:1024565378@qq.com

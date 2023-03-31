@@ -1,6 +1,6 @@
 # 根据yolov5改编:https://github.com/ultralytics/yolov5
 import torch
-from model.layer import image_deal, cbs, c3, sppf, concat, head, decode
+from model.layer import cbs, c3, sppf, concat, head
 
 
 class yolov5(torch.nn.Module):
@@ -16,7 +16,6 @@ class yolov5(torch.nn.Module):
         dim = dim_dict[args.model_type]
         n = n_dict[args.model_type]
         # 网络结构
-        self.image_deal = image_deal()
         self.l0 = cbs(3, dim, 6, 2)  # 1/2
         self.l1 = cbs(dim, 2 * dim, 3, 2)  # 1/4
         # ---------- #
@@ -50,11 +49,9 @@ class yolov5(torch.nn.Module):
         self.output0 = head(4 * dim, 3 * (5 + self.output_class))
         self.output1 = head(8 * dim, 3 * (5 + self.output_class))
         self.output2 = head(16 * dim, 3 * (5 + self.output_class))
-        self.decode = decode(self.input_size)
 
     def forward(self, x):
         # 输入(batch,640,640,3)
-        x = self.image_deal(x)
         x = self.l0(x)
         x = self.l1(x)
         x = self.l2(x)
@@ -85,13 +82,12 @@ class yolov5(torch.nn.Module):
         x = self.l23(x)
         output2 = self.output2(x)
         output2 = output2.reshape(-1, 3, self.output_size[2], self.output_size[2], 5 + self.output_class)  # 变形
-        output = self.decode([output0, output1, output2])
-        return output
+        return [output0, output1, output2]
 
 
 if __name__ == '__main__':
     import argparse
-    from layer import image_deal, cbs, c3, sppf, concat, head, decode
+    from layer import cbs, c3, sppf, concat, head
 
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--model_type', default='n', type=str)

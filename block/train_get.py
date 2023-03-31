@@ -33,7 +33,7 @@ def train_get(args, data_dict, model_dict, loss):
         train_confidence_loss = 0  # 记录置信度框损失
         train_class_loss = 0  # 记录类别损失
         for item, (image_batch, true_batch, judge_batch, label_list) in enumerate(tqdm.tqdm(train_dataloader)):
-            wandb_image_batch = image_batch.cpu().numpy().astype(np.uint8) \
+            wandb_image_batch = (image_batch.cpu().numpy().transpose(0, 2, 3, 1) * 255).astype(np.uint8) \
                 if args.wandb and len(wandb_image_list) < args.wandb_image_num else None
             image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到设备上
             for i in range(len(true_batch)):  # 将标签矩阵放到对应设备上
@@ -86,7 +86,7 @@ def train_get(args, data_dict, model_dict, loss):
         train_class_loss = train_class_loss / (item + 1)
         print('\n| 轮次:{} | train_loss:{:.4f} | train_frame_loss:{:.4f} | train_confidence_loss:{:.4f} |'
               ' train_class_loss:{:.4f} |\n'
-              .format(item + 1, train_loss, train_frame_loss, train_confidence_loss, train_class_loss))
+              .format(epoch + 1, train_loss, train_frame_loss, train_confidence_loss, train_class_loss))
         # 清理显存空间
         del image_batch, true_batch, judge_batch, pred_batch, loss_batch
         torch.cuda.empty_cache()
@@ -103,8 +103,8 @@ def train_get(args, data_dict, model_dict, loss):
         model_dict['val_m_ap'] = m_ap
         model_dict['val_nms_m_ap'] = nms_m_ap
         torch.save(model_dict, 'last.pt')  # 保存最后一次训练的模型
-        if m_ap > 0.25 and m_ap > model_dict['standard']:
-            model_dict['standard'] = m_ap
+        if nms_m_ap > 0.25 and nms_m_ap > model_dict['standard']:
+            model_dict['standard'] = nms_m_ap
             torch.save(model_dict, args.save_name)  # 保存最佳模型
             print('\n| 保存最佳模型:{} | val_m_ap:{:.4f} |\n'.format(args.save_name, m_ap))
         # wandb
@@ -133,28 +133,15 @@ def train_get(args, data_dict, model_dict, loss):
 
 class torch_dataset(torch.utils.data.Dataset):
     def __init__(self, args, tag, data):
-        output_num_dict = {'yolov5': (3, 3, 3),
-                           'yolov7': (3, 3, 3)
-                           }  # 输出层数量，如(3, 3, 3)代表有三个大层，每层有三个小层
-        stride_dict = {'yolov5': (8, 16, 32),
-                       'yolov7': (8, 16, 32)
-                       }  # 每个输出层尺寸缩小的幅度
-        anchor_dict = {'yolov5': (((12, 16), (19, 36), (40, 28)), ((36, 75), (76, 55), (72, 146)),
-                                  ((142, 110), (192, 243), (459, 401))),
-                       'yolov7': (((12, 16), (19, 36), (40, 28)), ((36, 75), (76, 55), (72, 146)),
-                                  ((142, 110), (192, 243), (459, 401)))
-                       }  # 先验框
-        wh_multiple_dict = {'yolov5': 4,
-                            'yolov7': 4
-                            }  # 宽高的倍数，真实wh=网络原始输出[0-1]*倍数*anchor
-        self.output_num = output_num_dict[args.model]
-        self.stride = stride_dict[args.model]
-        self.anchor = anchor_dict[args.model]
-        self.wh_multiple = wh_multiple_dict[args.model]
+        self.output_num = (3, 3, 3)  # 输出层数量，如(3, 3, 3)代表有三个大层，每层有三个小层
+        self.stride = (8, 16, 32)  # 每个输出层尺寸缩小的幅度
+        self.wh_multiple = 4  # 宽高的倍数，真实wh=网络原始输出[0-1]*倍数*anchor
         self.input_size = args.input_size  # 输入尺寸，如640
         self.output_class = args.output_class  # 输出类别数
         self.label_smooth = args.label_smooth  # 标签平滑，如(0.05,0.95)
         self.output_size = [int(self.input_size // i) for i in self.stride]  # 每个输出层的尺寸，如(80,40,20)
+        self.anchor = (((12, 16), (19, 36), (40, 28)), ((36, 75), (76, 55), (72, 146)),
+                       ((142, 110), (192, 243), (459, 401)))
         self.tag = tag  # 用于区分是训练集还是验证集
         self.data = data
         self.mosaic = args.mosaic
@@ -174,7 +161,7 @@ class torch_dataset(torch.utils.data.Dataset):
             image, frame = self._resize(image.astype(np.uint8), label[:, 1:],
                                         self.input_size)  # 缩放和填充图片，相对坐标(Cx,Cy,w,h)变为真实坐标
         image = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_BGR2RGB)  # 转为RGB通道
-        image = torch.tensor(image, dtype=torch.float32)
+        image = (torch.tensor(image, dtype=torch.float32) / 255).permute(2, 0, 1)
         # 边框:转换为张量
         frame = torch.tensor(frame, dtype=torch.float32)
         # 置信度:为1
@@ -184,7 +171,7 @@ class torch_dataset(torch.utils.data.Dataset):
         for i in range(len(label)):
             cls[i][int(label[i, 0])] = self.label_smooth[1]
         # 合并为标签
-        label = torch.concat([frame, confidence, cls], dim=1)
+        label = torch.concat([frame, confidence, cls], dim=1)  # (Cx,Cy,w,h)真实坐标
         # 标签矩阵处理
         label_matrix_list = [0 for _ in range(len(self.output_num))]  # 存放每个输出层的标签矩阵
         judge_matrix_list = [0 for _ in range(len(self.output_num))]  # 存放每个输出层的判断矩阵
@@ -193,34 +180,38 @@ class torch_dataset(torch.utils.data.Dataset):
                                        5 + self.output_class, dtype=torch.float32)  # 标签矩阵
             judge_matrix = torch.zeros(self.output_num[i], self.output_size[i], self.output_size[i],
                                        dtype=torch.bool)  # 判断矩阵，False代表没有标签
+            frame = label[:, 0:4].clone()
+            frame[:, 0:2] = frame[:, 0:2] / self.stride[i]
+            frame[:, 2:4] = frame[:, 2:4] / self.wh_multiple
             # 标签对应输出网格的坐标
-            Cx = frame[:, 0] / self.stride[i]
+            Cx = frame[:, 0]
             x_grid = Cx.type(torch.int8)
             x_move = Cx - x_grid
             x_grid_add = x_grid + 2 * torch.round(x_move).type(torch.int8) - 1  # 每个标签可以由相邻网格预测
             x_grid_add = torch.clamp(x_grid_add, 0, self.output_size[i] - 1)  # 网格不能超出范围(与x_grid重复的网格之后不会加入)
-            Cy = frame[:, 1] / self.stride[i]
+            Cy = frame[:, 1]
             y_grid = Cy.type(torch.int8)
             y_move = Cy - y_grid
             y_grid_add = y_grid + 2 * torch.round(y_move).type(torch.int8) - 1  # 每个标签可以由相邻网格预测
             y_grid_add = torch.clamp(y_grid_add, 0, self.output_size[i] - 1)  # 网格不能超出范围(与y_grid重复的网格之后不会加入)
             # 遍历每个输出层的小层
             for j in range(self.output_num[i]):
-                # 根据wh筛选
-                w = frame[:, 2] / self.anchor[i][j][0] / self.wh_multiple  # 该值要在0-1该层才能预测(但0-0.0625太小可以舍弃)
-                h = frame[:, 3] / self.anchor[i][j][1] / self.wh_multiple  # 该值要在0-1该层才能预测(但0-0.0625太小可以舍弃)
+                # 根据wh制定筛选条件
+                frame_change = frame.clone()
+                w = frame_change[:, 2] / self.anchor[i][j][0]  # 该值要在0-1该层才能预测(但0-0.0625太小可以舍弃)
+                h = frame_change[:, 3] / self.anchor[i][j][1]  # 该值要在0-1该层才能预测(但0-0.0625太小可以舍弃)
                 wh_screen = torch.where((0.0625 < w) & (w < 1) & (0.0625 < h) & (h < 1), True, False)  # 筛选可以预测的标签
                 # 将标签填入对应的标签矩阵位置
                 for k in range(len(label)):
-                    if wh_screen[k]:
+                    if wh_screen[k]:  # 根据wh筛选
                         label_matrix[j, x_grid[k], y_grid[k]] = label[k]
                         judge_matrix[j, x_grid[k], y_grid[k]] = True
                 # 将扩充的标签填入对应的标签矩阵位置
                 for k in range(len(label)):
-                    if wh_screen[k] and not judge_matrix[j, x_grid_add[k], y_grid[k]]:
+                    if wh_screen[k] and not judge_matrix[j, x_grid_add[k], y_grid[k]]:  # 需要该位置有空位
                         label_matrix[j, x_grid_add[k], y_grid[k]] = label[k]
                         judge_matrix[j, x_grid_add[k], y_grid[k]] = True
-                    if wh_screen[k] and not judge_matrix[j, x_grid[k], y_grid_add[k]]:
+                    if wh_screen[k] and not judge_matrix[j, x_grid[k], y_grid_add[k]]:  # 需要该位置有空位
                         label_matrix[j, x_grid[k], y_grid_add[k]] = label[k]
                         judge_matrix[j, x_grid[k], y_grid_add[k]] = True
             # 存放每个输出层的结果
