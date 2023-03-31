@@ -11,15 +11,15 @@ from model.layer import deploy
 # -------------------------------------------------------------------------------------------------------------------- #
 # 设置
 parser = argparse.ArgumentParser(description='pt模型推理')
-parser.add_argument('--model_path', default='best.pt', type=str, help='|pt模型位置|')
+parser.add_argument('--model_path', default='last.pt', type=str, help='|pt模型位置|')
 parser.add_argument('--image_path', default='image', type=str, help='|图片文件夹位置|')
 parser.add_argument('--input_size', default=640, type=int, help='|模型输入图片大小|')
 parser.add_argument('--batch', default=1, type=int, help='|输入图片批量|')
-parser.add_argument('--confidence_threshold', default=0.5, type=float, help='|置信筛选度阈值(>阈值留下)|')
+parser.add_argument('--confidence_threshold', default=0.35, type=float, help='|置信筛选度阈值(>阈值留下)|')
 parser.add_argument('--iou_threshold', default=0.65, type=float, help='|iou阈值筛选阈值(>阈值留下)|')
 parser.add_argument('--device', default='cuda', type=str, help='|用CPU/GPU推理|')
 parser.add_argument('--num_worker', default=0, type=int, help='|CPU在处理数据时使用的进程数，0表示只有一个主进程，一般为0、2、4、8|')
-parser.add_argument('--float16', default=True, type=bool, help='|推理数据类型，要支持float16的GPU，False时为float32|')
+parser.add_argument('--float16', default=False, type=bool, help='|推理数据类型，要支持float16的GPU，False时为float32|')
 args = parser.parse_args()
 args.model_path = args.model_path.split('.')[0] + '.pt'
 # -------------------------------------------------------------------------------------------------------------------- #
@@ -46,12 +46,12 @@ def confidence_screen(pred, confidence_threshold):
 
 
 def iou_single(A, B):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
-    x1 = np.maximum(A[:, 0], B[0])
-    y1 = np.maximum(A[:, 1], B[1])
-    x2 = np.minimum(A[:, 0] + A[:, 2], B[0] + B[2])
-    y2 = np.minimum(A[:, 1] + A[:, 3], B[1] + B[3])
-    zeros = np.zeros(1)
-    intersection = np.maximum(x2 - x1, zeros) * np.maximum(y2 - y1, zeros)
+    x1 = torch.maximum(A[:, 0], B[0])
+    y1 = torch.maximum(A[:, 1], B[1])
+    x2 = torch.minimum(A[:, 0] + A[:, 2], B[0] + B[2])
+    y2 = torch.minimum(A[:, 1] + A[:, 3], B[1] + B[3])
+    zeros = torch.zeros(1, device=A.device)
+    intersection = torch.maximum(x2 - x1, zeros) * torch.maximum(y2 - y1, zeros)
     union = A[:, 2] * A[:, 3] + B[2] * B[3] - intersection
     return intersection / union
 
@@ -94,7 +94,6 @@ def test_pt():
             image_all = image_batch.cpu().numpy().astype(np.uint8)  # 转为numpy，用于画图
             image_batch = image_batch.to(args.device)
             pred_batch = model(image_batch)
-            pred_batch = [pred_batch[i].cpu().numpy() for i in range(len(pred_batch))]  # 转为numpy
             # 对batch中的每张图片分别操作
             for i in range(len(pred_batch[0])):
                 pred = [_[i] for _ in pred_batch]  # (Cx,Cy,w,h)
@@ -105,8 +104,8 @@ def test_pt():
                 pred[:, 0:2] = pred[:, 0:2] - pred[:, 2:4] / 2  # (x_min,y_min,w,h)真实坐标
                 pred = nms(pred, args.iou_threshold)  # 非极大值抑制
                 frame = pred[:, 0:4]  # 边框
-                cls = np.argmax(pred[:, 5:], axis=1)  # 类别
-                draw(image_all[i], frame, cls, name_batch[i])
+                cls = torch.argmax(pred[:, 5:], dim=1)  # 类别
+                draw(image_all[i], frame.cpu().numpy(), cls.cpu().numpy(), name_batch[i])
     end_time = time.time()
     print('| 数据:{} 批量:{} 每张耗时:{:.4f} |'.format(len(image_dir), args.batch, (end_time - start_time) / len(image_dir)))
 
