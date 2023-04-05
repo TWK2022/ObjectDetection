@@ -43,7 +43,7 @@ parser.add_argument('--device', default='cuda', type=str, help='|训练设备|')
 parser.add_argument('--latch', default=True, type=bool, help='|模型和数据是否为锁存，True为锁存|')
 parser.add_argument('--num_worker', default=0, type=int, help='|CPU在处理数据时使用的进程数，0表示只有一个主进程，一般为0、2、4、8|')
 parser.add_argument('--ema', default=True, type=bool, help='|使用平均指数移动(EMA)调整参数|')
-parser.add_argument('--scaler', default=False, type=bool, help='|混合float16精度训练|')
+parser.add_argument('--amp', default=False, type=bool, help='|混合float16精度训练|')
 parser.add_argument('--mosaic', default=0.5, type=float, help='|使用mosaic增强的概率|')
 parser.add_argument('--confidence_threshold', default=0.35, type=float, help='|指标计算置信度阈值|')
 parser.add_argument('--iou_threshold', default=0.5, type=float, help='|指标计算iou阈值|')
@@ -62,8 +62,8 @@ torch.backends.cudnn.benchmark = False
 if args.wandb:
     args.wandb_run = wandb.init(project=args.wandb_project, name=args.wandb_name, config=args)
 # 混合float16精度训练
-if args.scaler:
-    args.scaler = torch.cuda.amp.GradScaler()
+if args.amp:
+    args.amp = torch.cuda.amp.GradScaler()
 # -------------------------------------------------------------------------------------------------------------------- #
 # 初步检查
 assert os.path.exists(args.data_path + '/' + 'image'), 'data_path中缺少image'

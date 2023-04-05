@@ -40,14 +40,14 @@ def train_get(args, data_dict, model_dict, loss):
             image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到设备上
             for i in range(len(true_batch)):  # 将标签矩阵放到对应设备上
                 true_batch[i] = true_batch[i].to(args.device, non_blocking=args.latch)
-            if args.scaler:
+            if args.amp:
                 with torch.cuda.amp.autocast():
                     pred_batch = model(image_batch)
                     loss_batch, frame_loss, confidence_loss, class_loss = loss(pred_batch, true_batch, judge_batch)
                 optimizer.zero_grad()
-                args.scaler.scale(loss_batch).backward()
-                args.scaler.step(optimizer)
-                args.scaler.update()
+                args.amp.scale(loss_batch).backward()
+                args.amp.step(optimizer)
+                args.amp.update()
             else:
                 pred_batch = model(image_batch)
                 loss_batch, frame_loss, confidence_loss, class_loss = loss(pred_batch, true_batch, judge_batch)
