@@ -5,38 +5,56 @@ import torch
 import numpy as np
 from block.val_get import val_get
 from block.ModelEMA import ModelEMA
+from block.lr_adjust import lr_adjust
 
 
 def train_get(args, data_dict, model_dict, loss):
+    # 加载模型
     model = model_dict['model'].to(args.device, non_blocking=args.latch)
-    ema = ModelEMA(model) if args.ema else None  # 使用平均指数移动(EMA)调整参数，不能将ema放到args中，否则会导致模型保存出错
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    # 分布式初始化
+    torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank],
+                                              output_device=args.local_rank) if args.distributed else None
+    # 使用平均指数移动(EMA)调整参数(不能将ema放到args中，否则会导致模型保存出错)
+    ema = ModelEMA(model) if args.ema else None
+    if args.ema:
+        ema.updates = model_dict['ema_updates']
+    # 学习率
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.937, 0.999), weight_decay=0.0005)
     optimizer.load_state_dict(model_dict['optimizer_state_dict']) if model_dict['optimizer_state_dict'] else None
-    train_dataloader = torch.utils.data.DataLoader(torch_dataset(args, 'train', data_dict['train']),
-                                                   batch_size=args.batch, shuffle=True, drop_last=True,
-                                                   pin_memory=args.latch, num_workers=args.num_worker,
-                                                   collate_fn=collate_fn)
-    val_dataloader = torch.utils.data.DataLoader(torch_dataset(args, 'val', data_dict['val']),
-                                                 batch_size=args.batch, shuffle=False, drop_last=False,
+    optimizer_adjust = lr_adjust(model_dict['lr_adjust_item'])
+    optimizer = optimizer_adjust(optimizer, args.lr, model_dict['epoch'] + 1, 0)  # 初始化学习率
+    # 数据集
+    train_dataset = torch_dataset(args, 'train', data_dict['train'])
+    train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None
+    train_shuffle = False if args.distributed else True  # 分布式设置sampler后shuffle要为False
+    train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch, shuffle=train_shuffle,
+                                                   drop_last=True, pin_memory=args.latch, num_workers=args.num_worker,
+                                                   sampler=train_sampler, collate_fn=collate_fn)
+    val_dataset = torch_dataset(args, 'val', data_dict['val'])
+    val_sampler = None  # 分布式时数据合在主GPU上进行验证
+    val_batch = args.batch // args.gpu_number  # 分布式验证时batch要减少为一个GPU的量
+    val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=val_batch, shuffle=False, drop_last=False,
                                                  pin_memory=args.latch, num_workers=args.num_worker,
-                                                 collate_fn=collate_fn)
+                                                 sampler=val_sampler, collate_fn=collate_fn)
     # wandb
-    if args.wandb:
+    if args.wandb and args.local_rank == 0:
         wandb_image_list = []  # 记录所有的wandb_image最后一起添加(最多添加args.wandb_image_num张)
         wandb_class_name = {}  # 用于给边框添加标签名字
         for i in range(len(data_dict['class'])):
             wandb_class_name[i] = data_dict['class'][i]
     for epoch in range(args.epoch):
         # 训练
-        print(f'\n-----------------------第{epoch + 1}轮-----------------------')
+        print(f'\n-----------------------第{epoch}轮-----------------------') if args.local_rank == 0 else None
         model.train()
         train_loss = 0  # 记录训练损失
         train_frame_loss = 0  # 记录边框损失
         train_confidence_loss = 0  # 记录置信度框损失
         train_class_loss = 0  # 记录类别损失
-        for item, (image_batch, true_batch, judge_batch, label_list) in enumerate(tqdm.tqdm(train_dataloader)):
-            wandb_image_batch = (image_batch.cpu().numpy().transpose(0, 2, 3, 1) * 255).astype(np.uint8) \
-                if args.wandb and len(wandb_image_list) < args.wandb_image_num else None
+        tqdm_show = tqdm.tqdm(total=len(data_dict['train']) // args.batch // args.gpu_number * args.gpu_number,
+                              postfix=dict, mininterval=0.2) if args.local_rank == 0 else None  # tqdm
+        for item, (image_batch, true_batch, judge_batch, label_list) in enumerate(train_dataloader):
+            if args.wandb and args.local_rank == 0 and len(wandb_image_list) < args.wandb_image_num:
+                wandb_image_batch = (image_batch * 255).cpu().numpy().astype(np.uint8).transpose(0, 2, 3, 1)
             image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到设备上
             for i in range(len(true_batch)):  # 将标签矩阵放到对应设备上
                 true_batch[i] = true_batch[i].to(args.device, non_blocking=args.latch)
@@ -61,8 +79,12 @@ def train_get(args, data_dict, model_dict, loss):
             train_frame_loss += frame_loss.item()
             train_confidence_loss += confidence_loss.item()
             train_class_loss += class_loss.item()
+            # tqdm
+            if args.local_rank == 0:
+                tqdm_show.set_postfix({'当前loss': loss_batch.item()})  # 添加loss显示
+                tqdm_show.update(args.gpu_number)  # 更新进度条
             # wandb
-            if args.wandb and epoch == 0 and len(wandb_image_list) < args.wandb_image_num:
+            if args.wandb and args.local_rank == 0 and epoch == 0 and len(wandb_image_list) < args.wandb_image_num:
                 for i in range(len(wandb_image_batch)):  # 遍历每一张图片
                     image = wandb_image_batch[i]
                     frame = label_list[i][:, 0:4] / args.input_size  # (Cx,Cy,w,h)相对坐标
@@ -83,55 +105,65 @@ def train_get(args, data_dict, model_dict, loss):
                     wandb_image_list.append(wandb_image)
                     if len(wandb_image_list) == args.wandb_image_num:
                         break
+        # tqdm
+        tqdm_show.close() if args.local_rank == 0 else None
         # 计算平均损失
         train_loss = train_loss / (item + 1)
         train_frame_loss = train_frame_loss / (item + 1)
         train_confidence_loss = train_confidence_loss / (item + 1)
         train_class_loss = train_class_loss / (item + 1)
         print('\n| 轮次:{} | train_loss:{:.4f} | train_frame_loss:{:.4f} | train_confidence_loss:{:.4f} |'
-              ' train_class_loss:{:.4f} |\n'
-              .format(epoch + 1, train_loss, train_frame_loss, train_confidence_loss, train_class_loss))
+              ' train_class_loss:{:.4f} | lr:{:.6f} |\n'
+              .format(epoch + 1, train_loss, train_frame_loss, train_confidence_loss, train_class_loss,
+                      optimizer.param_groups[0]['lr']))
+        # 调整学习率
+        optimizer = optimizer_adjust(optimizer, args.lr, epoch + 1, train_loss)
         # 清理显存空间
         del image_batch, true_batch, judge_batch, pred_batch, loss_batch
         torch.cuda.empty_cache()
         # 验证
-        val_loss, val_frame_loss, val_confidence_loss, val_class_loss, accuracy, precision, recall, m_ap, \
-        nms_precision, nms_recall, nms_m_ap = val_get(args, val_dataloader, model, loss, ema)
+        if args.local_rank == 0:  # 分布式时只验证一次
+            val_loss, val_frame_loss, val_confidence_loss, val_class_loss, accuracy, precision, recall, m_ap, \
+            nms_precision, nms_recall, nms_m_ap = val_get(args, val_dataloader, model, loss, ema)
         # 保存
-        model_dict['model'] = model.eval()
-        model_dict['epoch'] += epoch
-        model_dict['optimizer_state_dict'] = optimizer.state_dict()
-        model_dict['class'] = data_dict['class']
-        model_dict['train_loss'] = train_loss
-        model_dict['val_loss'] = val_loss
-        model_dict['val_m_ap'] = m_ap
-        model_dict['val_nms_m_ap'] = nms_m_ap
-        torch.save(model_dict, 'last.pt')  # 保存最后一次训练的模型
-        if nms_m_ap > 0.25 and nms_m_ap > model_dict['standard']:
-            model_dict['standard'] = nms_m_ap
-            torch.save(model_dict, args.save_name)  # 保存最佳模型
-            print('\n| 保存最佳模型:{} | val_m_ap:{:.4f} |\n'.format(args.save_name, m_ap))
-        # wandb
-        if args.wandb:
-            wandb_log = {}
-            if epoch == 0:
-                wandb_log.update({f'image/train_image': wandb_image_list})
-            wandb_log.update({'train/train_loss': train_loss,
-                              'train/train_frame_loss': train_frame_loss,
-                              'train/train_confidence_loss': train_confidence_loss,
-                              'train/train_class_loss': train_class_loss,
-                              'val_loss/val_loss': val_loss,
-                              'val_loss/val_frame_loss': val_frame_loss,
-                              'val_loss/val_confidence_loss': val_confidence_loss,
-                              'val_loss/val_class_loss': val_class_loss,
-                              'val_metric/val_accuracy': accuracy,
-                              'val_metric/val_precision': precision,
-                              'val_metric/val_recall': recall,
-                              'val_metric/val_m_ap': m_ap,
-                              'val_nms_metric/val_nms_precision': nms_precision,
-                              'val_nms_metric/val_nms_recall': nms_recall,
-                              'val_nms_metric/val_nms_m_ap': nms_m_ap})
-            args.wandb_run.log(wandb_log)
+        if args.local_rank == 0:  # 分布式时只保存一次
+            model_dict['model'] = model.eval()
+            model_dict['epoch'] += epoch
+            model_dict['optimizer_state_dict'] = optimizer.state_dict()
+            model_dict['lr_adjust_item'] = optimizer_adjust.lr_adjust_item
+            model_dict['ema_updates'] = ema.updates if args.ema else model_dict['ema_updates']
+            model_dict['class'] = data_dict['class']
+            model_dict['train_loss'] = train_loss
+            model_dict['val_loss'] = val_loss
+            model_dict['val_m_ap'] = m_ap
+            model_dict['val_nms_m_ap'] = nms_m_ap
+            torch.save(model_dict, 'last.pt')  # 保存最后一次训练的模型
+            if nms_m_ap > 0.25 and nms_m_ap > model_dict['standard']:
+                model_dict['standard'] = nms_m_ap
+                torch.save(model_dict, args.save_name)  # 保存最佳模型
+                print('\n| 保存最佳模型:{} | val_m_ap:{:.4f} |\n'.format(args.save_name, m_ap))
+            # wandb
+            if args.wandb:
+                wandb_log = {}
+                if epoch == 0:
+                    wandb_log.update({f'image/train_image': wandb_image_list})
+                wandb_log.update({'train/train_loss': train_loss,
+                                  'train/train_frame_loss': train_frame_loss,
+                                  'train/train_confidence_loss': train_confidence_loss,
+                                  'train/train_class_loss': train_class_loss,
+                                  'val_loss/val_loss': val_loss,
+                                  'val_loss/val_frame_loss': val_frame_loss,
+                                  'val_loss/val_confidence_loss': val_confidence_loss,
+                                  'val_loss/val_class_loss': val_class_loss,
+                                  'val_metric/val_accuracy': accuracy,
+                                  'val_metric/val_precision': precision,
+                                  'val_metric/val_recall': recall,
+                                  'val_metric/val_m_ap': m_ap,
+                                  'val_nms_metric/val_nms_precision': nms_precision,
+                                  'val_nms_metric/val_nms_recall': nms_recall,
+                                  'val_nms_metric/val_nms_m_ap': nms_m_ap})
+                args.wandb_run.log(wandb_log)
+        torch.distributed.barrier() if args.distributed else None  # 分布式时每轮训练后让所有GPU进行同步，快的GPU会在此等待
     return model_dict
 
 

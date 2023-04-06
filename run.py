@@ -20,6 +20,11 @@ from block.loss_get import loss_get
 from block.train_get import train_get
 
 # -------------------------------------------------------------------------------------------------------------------- #
+# 分布式训练:
+# python -m torch.distributed.launch --master_port 9999 --nproc_per_node n run.py --distributed True
+# master_port为GPU之间的通讯端口，空闲的即可
+# n为GPU数量
+# -------------------------------------------------------------------------------------------------------------------- #
 # 设置
 parser = argparse.ArgumentParser(description='目标检测')
 parser.add_argument('--data_path', default=r'D:\dataset\ObjectDetection\lamp', type=str, help='|数据根目录路径|')
@@ -38,7 +43,7 @@ parser.add_argument('--loss_weight', default=((1 / 3, 0.2, 0.6, 0.2), (1 / 3, 0.
 parser.add_argument('--label_smooth', default=(0.01, 0.99), type=tuple, help='|标签平滑的值|')
 parser.add_argument('--epoch', default=50, type=int, help='|训练轮数|')
 parser.add_argument('--batch', default=4, type=int, help='|训练批量大小|')
-parser.add_argument('--lr', default=0.001, type=int, help='|初始学习率，训练中采用adam算法|')
+parser.add_argument('--lr', default=0.001, type=float, help='|初始学习率，训练中采用adam算法，最终会下降到0.1*lr|')
 parser.add_argument('--device', default='cuda', type=str, help='|训练设备|')
 parser.add_argument('--latch', default=True, type=bool, help='|模型和数据是否为锁存，True为锁存|')
 parser.add_argument('--num_worker', default=0, type=int, help='|CPU在处理数据时使用的进程数，0表示只有一个主进程，一般为0、2、4、8|')
@@ -47,7 +52,10 @@ parser.add_argument('--amp', default=False, type=bool, help='|混合float16精�
 parser.add_argument('--mosaic', default=0.5, type=float, help='|使用mosaic增强的概率|')
 parser.add_argument('--confidence_threshold', default=0.35, type=float, help='|指标计算置信度阈值|')
 parser.add_argument('--iou_threshold', default=0.5, type=float, help='|指标计算iou阈值|')
+parser.add_argument('--distributed', default=False, type=bool, help='|单机多卡分布式训练，分布式训练时batch为总batch|')
+parser.add_argument('--local_rank', default=0, type=int, help='|分布式训练使用命令后会自动传入的参数|')
 args = parser.parse_args()
+args.gpu_number = torch.cuda.device_count()  # 使用的GPU数
 # 为CPU设置随机种子
 torch.manual_seed(999)
 # 为所有GPU设置随机种子
@@ -59,29 +67,29 @@ torch.backends.cudnn.enabled = True
 # 训练前cuDNN会先搜寻每个卷积层最适合实现它的卷积算法，加速运行；但对于复杂变化的输入数据，可能会有过长的搜寻时间，对于训练比较快的网络建议设为False
 torch.backends.cudnn.benchmark = False
 # wandb可视化:https://wandb.ai
-if args.wandb:
+if args.wandb and args.local_rank == 0:  # 分布式时只记录一次wandb
     args.wandb_run = wandb.init(project=args.wandb_project, name=args.wandb_name, config=args)
 # 混合float16精度训练
 if args.amp:
     args.amp = torch.cuda.amp.GradScaler()
+# 分布式训练
+if args.distributed:
+    torch.distributed.init_process_group(backend="nccl")  # 分布式训练初始化
+    args.device = torch.device("cuda", args.local_rank)
 # -------------------------------------------------------------------------------------------------------------------- #
 # 初步检查
-assert os.path.exists(args.data_path + '/' + 'image'), 'data_path中缺少image'
-assert os.path.exists(args.data_path + '/' + 'label'), 'data_path中缺少label'
-assert os.path.exists(args.data_path + '/' + 'train.txt'), 'data_path中缺少train.txt'
-assert os.path.exists(args.data_path + '/' + 'val.txt'), 'data_path中缺少val.txt'
-assert os.path.exists(args.data_path + '/' + 'class.txt'), 'data_path中缺少class.txt'
-if os.path.exists(args.weight):  # 优先加载已有模型args.weight继续训练
-    print('| 加载已有模型:{} |'.format(args.weight))
-else:  # 创建自定义模型args.model
-    assert os.path.exists('model/' + args.model + '.py'), '没有此自定义模型'.format(args.model)
-    print('| 创建自定义模型:{} | 型号:{} |'.format(args.model, args.model_type))
-if args.device.lower() in ['cuda', 'gpu']:  # 检查训练设备
-    assert torch.cuda.is_available(), 'GPU不可用'
-    args.device = 'cuda'
-else:
-    args.device = 'cpu'
-print('| args:{} |'.format(args))
+if args.local_rank == 0:
+    print('| args:{} |'.format(args))
+    assert os.path.exists(args.data_path + '/' + 'image'), 'data_path中缺少image'
+    assert os.path.exists(args.data_path + '/' + 'label'), 'data_path中缺少label'
+    assert os.path.exists(args.data_path + '/' + 'train.txt'), 'data_path中缺少train.txt'
+    assert os.path.exists(args.data_path + '/' + 'val.txt'), 'data_path中缺少val.txt'
+    assert os.path.exists(args.data_path + '/' + 'class.txt'), 'data_path中缺少class.txt'
+    if os.path.exists(args.weight):  # 优先加载已有模型args.weight继续训练
+        print('| 加载已有模型:{} |'.format(args.weight))
+    else:  # 创建自定义模型args.model
+        assert os.path.exists('model/' + args.model + '.py'), '没有此自定义模型'.format(args.model)
+        print('| 创建自定义模型:{} | 型号:{} |'.format(args.model, args.model_type))
 # -------------------------------------------------------------------------------------------------------------------- #
 # 程序
 if __name__ == '__main__':
@@ -93,19 +101,7 @@ if __name__ == '__main__':
     loss = loss_get(args)
     # 摘要
     print('| 训练集:{} | 验证集:{} | 模型:{} | 输入尺寸:{} | 初始学习率:{} |'
-          .format(len(data_dict['train']), len(data_dict['val']), args.model, args.input_size, args.lr))
-    # 训练(包括图片读取和预处理、训练、验证、保存模型)
-    model_dict = train_get(args, data_dict, model_dict, loss)
-    # 显示结果
-    try:
-        print('\n| 最佳结果 | train_loss:{:.4f} | train_frame_loss:{:.4f} | train_confidence_loss:{:.4f} |'
-              ' train_class_loss:{:.4f} | val_loss:{:.4f} | val_frame_loss:{:.4f} | val_confidence_loss:{:.4f} |'
-              ' val_class_loss:{:.4f} | val_accuracy:{:.4f} | val_precision:{:.4f} | val_recall:{:.4f} |'
-              ' val_m_ap:{:.4f} | val_nms_precision:{:.4f} | val_nms_recall:{:.4f} | val_nms_m_ap:{:.4f} |\n'
-              .format(model_dict['train_loss'], model_dict['train_frame_loss'], model_dict['train_confidence_loss'],
-                      model_dict['train_class_loss'], model_dict['val_loss'], model_dict['val_frame_loss'],
-                      model_dict['val_confidence_loss'], model_dict['val_class_loss'], model_dict['val_accuracy'],
-                      model_dict['val_precision'], model_dict['val_recall'], model_dict['val_m_ap'],
-                      model_dict['val_nms_precision'], model_dict['val_nms_recall'], model_dict['val_nms_m_ap']))
-    except:
-        print('\n| !由于指标太低没有保存最佳模型! |\n')
+          .format(len(data_dict['train']), len(data_dict['val']), args.model, args.input_size,
+                  args.lr)) if args.local_rank == 0 else None
+    # 训练
+    train_get(args, data_dict, model_dict, loss)
