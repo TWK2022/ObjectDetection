@@ -27,7 +27,7 @@ from block.train_get import train_get
 # -------------------------------------------------------------------------------------------------------------------- #
 # 设置
 parser = argparse.ArgumentParser(description='目标检测')
-parser.add_argument('--data_path', default=r'D:\dataset\ObjectDetection\lamp', type=str, help='|数据根目录路径|')
+parser.add_argument('--data_path', default=r'D:\dataset\ObjectDetection\voc', type=str, help='|数据根目录路径|')
 parser.add_argument('--wandb', default=False, type=bool, help='|是否使用wandb可视化|')
 parser.add_argument('--wandb_project', default='test', type=str, help='|wandb项目名称|')
 parser.add_argument('--wandb_name', default='train', type=str, help='|wandb项目中的训练名称|')
@@ -37,7 +37,7 @@ parser.add_argument('--weight', default='last.pt', type=str, help='|已有模型
 parser.add_argument('--model', default='yolov7', type=str, help='|模型选择|')
 parser.add_argument('--model_type', default='s', type=str, help='|模型的型号参数，部分模型有|')
 parser.add_argument('--input_size', default=640, type=int, help='|输入图片大小|')
-parser.add_argument('--output_class', default=1, type=int, help='|输出的类别数|')
+parser.add_argument('--output_class', default=20, type=int, help='|输出的类别数|')
 parser.add_argument('--loss_weight', default=((1 / 3, 0.2, 0.6, 0.2), (1 / 3, 0.3, 0.5, 0.2), (1 / 3, 0.4, 0.4, 0.2)),
                     type=tuple, help='|每个输出层(从大到小排序)的权重->[总权重、边框权重、置信度权重、分类权重]|')
 parser.add_argument('--label_smooth', default=(0.01, 0.99), type=tuple, help='|标签平滑的值|')
