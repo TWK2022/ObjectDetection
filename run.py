@@ -1,7 +1,7 @@
 # 数据需准备成以下格式(标准YOLO格式)
 # ├── 数据集路径:data_path
 #     └── image:存放所有图片
-#     └── label:存放所有图片的标签，名称:图片名.txt，内容:类别号 x_center y_center w h(相对图片的比例值)
+#     └── label:存放所有图片的标签，名称:图片名.txt，内容:(类别号 x_center y_center w h\n)相对图片的比例值
 #     └── train.txt:训练图片的绝对路径(或相对data_path下路径)
 #     └── val.txt:验证图片的绝对路径(或相对data_path下路径)
 #     └── class.txt:所有的类别名称
@@ -48,7 +48,7 @@ parser.add_argument('--device', default='cuda', type=str, help='|训练设备|')
 parser.add_argument('--latch', default=True, type=bool, help='|模型和数据是否为锁存，True为锁存|')
 parser.add_argument('--num_worker', default=0, type=int, help='|CPU在处理数据时使用的进程数，0表示只有一个主进程，一般为0、2、4、8|')
 parser.add_argument('--ema', default=True, type=bool, help='|使用平均指数移动(EMA)调整参数|')
-parser.add_argument('--amp', default=False, type=bool, help='|混合float16精度训练|')
+parser.add_argument('--amp', default=False, type=bool, help='|混合float16精度训练，windows上可能会出现nan，但linux正常|')
 parser.add_argument('--mosaic', default=0.5, type=float, help='|使用mosaic增强的概率|')
 parser.add_argument('--confidence_threshold', default=0.35, type=float, help='|指标计算置信度阈值|')
 parser.add_argument('--iou_threshold', default=0.5, type=float, help='|指标计算iou阈值|')
@@ -100,8 +100,8 @@ if __name__ == '__main__':
     # 损失
     loss = loss_get(args)
     # 摘要
-    print('| 训练集:{} | 验证集:{} | 模型:{} | 输入尺寸:{} | 初始学习率:{} |'
-          .format(len(data_dict['train']), len(data_dict['val']), args.model, args.input_size,
+    print('| 训练集:{} | 验证集:{} | 批量{} | 模型:{} | 输入尺寸:{} | 初始学习率:{} |'
+          .format(len(data_dict['train']), len(data_dict['val']), args.batch, args.model, args.input_size,
                   args.lr)) if args.local_rank == 0 else None
     # 训练
     train_get(args, data_dict, model_dict, loss)
