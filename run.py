@@ -43,7 +43,9 @@ parser.add_argument('--loss_weight', default=((1 / 3, 0.2, 0.6, 0.2), (1 / 3, 0.
 parser.add_argument('--label_smooth', default=(0.01, 0.99), type=tuple, help='|标签平滑的值|')
 parser.add_argument('--epoch', default=50, type=int, help='|训练轮数|')
 parser.add_argument('--batch', default=4, type=int, help='|训练批量大小|')
-parser.add_argument('--lr', default=0.001, type=float, help='|初始学习率，训练中采用adam算法，最终会下降到0.1*lr|')
+parser.add_argument('--lr_start', default=0.001, type=float, help='|初始学习率，训练中采用adam算法|')
+parser.add_argument('--lr_end', default=0.00005, type=float, help='|最终学习率|')
+parser.add_argument('--lr_adjust_num', default=50, type=int, help='|从初始学习率到最终学习率经过的调整次数|')
 parser.add_argument('--device', default='cuda', type=str, help='|训练设备|')
 parser.add_argument('--latch', default=True, type=bool, help='|模型和数据是否为锁存，True为锁存|')
 parser.add_argument('--num_worker', default=0, type=int, help='|CPU在处理数据时使用的进程数，0表示只有一个主进程，一般为0、2、4、8|')
@@ -102,6 +104,6 @@ if __name__ == '__main__':
     # 摘要
     print('| 训练集:{} | 验证集:{} | 批量{} | 模型:{} | 输入尺寸:{} | 初始学习率:{} |'
           .format(len(data_dict['train']), len(data_dict['val']), args.batch, args.model, args.input_size,
-                  args.lr)) if args.local_rank == 0 else None
+                  args.lr_start)) if args.local_rank == 0 else None
     # 训练
     train_get(args, data_dict, model_dict, loss)

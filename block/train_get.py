@@ -19,10 +19,10 @@ def train_get(args, data_dict, model_dict, loss):
     if args.ema:
         ema.updates = model_dict['ema_updates']
     # 学习率
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, betas=(0.937, 0.999), weight_decay=0.0005)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_start, betas=(0.937, 0.999), weight_decay=0.0005)
     optimizer.load_state_dict(model_dict['optimizer_state_dict']) if model_dict['optimizer_state_dict'] else None
-    optimizer_adjust = lr_adjust(model_dict['lr_adjust_item'])
-    optimizer = optimizer_adjust(optimizer, args.lr, model_dict['epoch'] + 1, 0)  # 初始化学习率
+    optimizer_adjust = lr_adjust(args, model_dict['lr_adjust_item'])
+    optimizer = optimizer_adjust(optimizer, model_dict['epoch'] + 1, 0)  # 初始化学习率
     # 数据集
     train_dataset = torch_dataset(args, 'train', data_dict['train'])
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset) if args.distributed else None
@@ -42,7 +42,8 @@ def train_get(args, data_dict, model_dict, loss):
         wandb_class_name = {}  # 用于给边框添加标签名字
         for i in range(len(data_dict['class'])):
             wandb_class_name[i] = data_dict['class'][i]
-    for epoch in range(args.epoch):
+    epoch_base = model_dict['epoch'] + 1  # 新的一轮要+1
+    for epoch in range(epoch_base, epoch_base + args.epoch):
         # 训练
         print(f'\n-----------------------第{epoch}轮-----------------------') if args.local_rank == 0 else None
         model.train()
@@ -117,7 +118,7 @@ def train_get(args, data_dict, model_dict, loss):
               .format(epoch + 1, train_loss, train_frame_loss, train_confidence_loss, train_class_loss,
                       optimizer.param_groups[0]['lr']))
         # 调整学习率
-        optimizer = optimizer_adjust(optimizer, args.lr, epoch + 1, train_loss)
+        optimizer = optimizer_adjust(optimizer, epoch + 1, train_loss)
         # 清理显存空间
         del image_batch, true_batch, judge_batch, pred_batch, loss_batch
         torch.cuda.empty_cache()
@@ -128,7 +129,7 @@ def train_get(args, data_dict, model_dict, loss):
         # 保存
         if args.local_rank == 0:  # 分布式时只保存一次
             model_dict['model'] = model.eval()
-            model_dict['epoch'] += epoch
+            model_dict['epoch'] = epoch
             model_dict['optimizer_state_dict'] = optimizer.state_dict()
             model_dict['lr_adjust_item'] = optimizer_adjust.lr_adjust_item
             model_dict['ema_updates'] = ema.updates if args.ema else model_dict['ema_updates']
