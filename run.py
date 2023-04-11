@@ -28,7 +28,7 @@ from block.train_get import train_get
 # 设置
 parser = argparse.ArgumentParser(description='目标检测')
 parser.add_argument('--data_path', default=r'D:\dataset\ObjectDetection\voc', type=str, help='|数据根目录路径|')
-parser.add_argument('--wandb', default=False, type=bool, help='|是否使用wandb可视化|')
+parser.add_argument('--wandb', default=True, type=bool, help='|是否使用wandb可视化|')
 parser.add_argument('--wandb_project', default='test', type=str, help='|wandb项目名称|')
 parser.add_argument('--wandb_name', default='train', type=str, help='|wandb项目中的训练名称|')
 parser.add_argument('--wandb_image_num', default=16, type=int, help='|wandb保存图片的数量|')
@@ -81,17 +81,17 @@ if args.distributed:
 # -------------------------------------------------------------------------------------------------------------------- #
 # 初步检查
 if args.local_rank == 0:
-    print('| args:{} |'.format(args))
-    assert os.path.exists(args.data_path + '/' + 'image'), 'data_path中缺少image'
-    assert os.path.exists(args.data_path + '/' + 'label'), 'data_path中缺少label'
-    assert os.path.exists(args.data_path + '/' + 'train.txt'), 'data_path中缺少train.txt'
-    assert os.path.exists(args.data_path + '/' + 'val.txt'), 'data_path中缺少val.txt'
-    assert os.path.exists(args.data_path + '/' + 'class.txt'), 'data_path中缺少class.txt'
+    print(f'| args:{args} |')
+    assert os.path.exists(f'{args.data_path}/image'), 'data_path中缺少:image'
+    assert os.path.exists(f'{args.data_path}/label'), 'data_path中缺少:label'
+    assert os.path.exists(f'{args.data_path}/train.txt'), 'data_path中缺少:train.txt'
+    assert os.path.exists(f'{args.data_path}/val.txt'), 'data_path中缺少:val.txt'
+    assert os.path.exists(f'{args.data_path}/class.txt'), 'data_path中缺少:class.txt'
     if os.path.exists(args.weight):  # 优先加载已有模型args.weight继续训练
-        print('| 加载已有模型:{} |'.format(args.weight))
+        print(f'| 加载已有模型:{args.weight} |')
     else:  # 创建自定义模型args.model
-        assert os.path.exists('model/' + args.model + '.py'), '没有此自定义模型'.format(args.model)
-        print('| 创建自定义模型:{} | 型号:{} |'.format(args.model, args.model_type))
+        assert os.path.exists(f'model/{args.model}.py'), f'没有此自定义模型:{args.model}'
+        print(f'| 创建自定义模型:{args.model} | 型号:{args.model_type} |')
 # -------------------------------------------------------------------------------------------------------------------- #
 # 程序
 if __name__ == '__main__':
