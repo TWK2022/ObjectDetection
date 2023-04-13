@@ -28,7 +28,7 @@ from block.train_get import train_get
 # 设置
 parser = argparse.ArgumentParser(description='目标检测')
 parser.add_argument('--data_path', default=r'D:\dataset\ObjectDetection\voc', type=str, help='|数据根目录路径|')
-parser.add_argument('--wandb', default=True, type=bool, help='|是否使用wandb可视化|')
+parser.add_argument('--wandb', default=False, type=bool, help='|是否使用wandb可视化|')
 parser.add_argument('--wandb_project', default='test', type=str, help='|wandb项目名称|')
 parser.add_argument('--wandb_name', default='train', type=str, help='|wandb项目中的训练名称|')
 parser.add_argument('--wandb_image_num', default=16, type=int, help='|wandb保存图片的数量|')
