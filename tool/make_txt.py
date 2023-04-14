@@ -14,7 +14,7 @@ if __name__ == '__main__':
     image_dir = sorted(os.listdir(args.data_path))
     args.divide = list(map(int, args.divide.split(',')))
     boundary = int(len(image_dir) * args.divide[0] / (args.divide[0] + args.divide[1]))
-    with open('class.txt', 'a')as f:
+    with open('train.txt', 'a')as f:
         for i in range(boundary):
             label = args.data_path + '/' + image_dir[i]
             f.write(label + '\n')
