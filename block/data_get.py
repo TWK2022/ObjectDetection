@@ -24,7 +24,7 @@ class data_prepare(object):
         for i in range(len(txt)):
             image_path = f'{self.args.data_path}/image' + txt[i].split('image')[-1]
             data_list[i][0] = image_path
-            with open(f'{self.args.data_path}/label/' + image_path.split('/')[-1].split('.')[0] + '.txt', 'r') as f:
+            with open(f'{self.args.data_path}/' + image_path.split('/')[-1].split('.')[0] + '.txt', 'r') as f:
                 label_txt = [_.strip().split(' ') for _ in f.readlines()]  # 读取该图片的标签
             data_list[i][1] = np.array(label_txt, dtype=np.float32)
         return data_list
