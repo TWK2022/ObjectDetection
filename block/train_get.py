@@ -29,13 +29,13 @@ def train_get(args, data_dict, model_dict, loss):
     train_shuffle = False if args.distributed else True  # 分布式设置sampler后shuffle要为False
     train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch, shuffle=train_shuffle,
                                                    drop_last=True, pin_memory=args.latch, num_workers=args.num_worker,
-                                                   sampler=train_sampler, collate_fn=collate_fn)
+                                                   sampler=train_sampler, collate_fn=train_dataset._collate_fn)
     val_dataset = torch_dataset(args, 'val', data_dict['val'])
     val_sampler = None  # 分布式时数据合在主GPU上进行验证
     val_batch = args.batch // args.gpu_number  # 分布式验证时batch要减少为一个GPU的量
     val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=val_batch, shuffle=False, drop_last=False,
                                                  pin_memory=args.latch, num_workers=args.num_worker,
-                                                 sampler=val_sampler, collate_fn=collate_fn)
+                                                 sampler=val_sampler, collate_fn=val_dataset._collate_fn)
     # wandb
     if args.wandb and args.local_rank == 0:
         wandb_image_list = []  # 记录所有的wandb_image最后一起添加(最多添加args.wandb_image_num张)
@@ -313,25 +313,24 @@ class torch_dataset(torch.utils.data.Dataset):
         label = np.concatenate([label0, label1, label2, label3], axis=0)
         return image_resize, frame, label
 
-
-def collate_fn(getitem_batch):  # 自定义__getitem__合并方式
-    image_list = []
-    label_matrix_list = [[] for _ in range(len(getitem_batch[0][1]))]
-    judge_matrix_list = [[] for _ in range(len(getitem_batch[0][2]))]
-    label_list = []
-    for i in range(len(getitem_batch)):  # 遍历所有__getitem__
-        image = getitem_batch[i][0]
-        label_matrix = getitem_batch[i][1]
-        judge_matrix = getitem_batch[i][2]
-        label = getitem_batch[i][3]
-        image_list.append(image)
-        for j in range(len(label_matrix)):  # 遍历每个输出层
-            label_matrix_list[j].append(label_matrix[j])
-            judge_matrix_list[j].append(judge_matrix[j])
-        label_list.append(label)
-    # 合并
-    image_batch = torch.stack(image_list, dim=0)
-    for i in range(len(label_matrix_list)):
-        label_matrix_list[i] = torch.stack(label_matrix_list[i], dim=0)
-        judge_matrix_list[i] = torch.stack(judge_matrix_list[i], dim=0)
-    return image_batch, label_matrix_list, judge_matrix_list, label_list  # 均为(Cx,Cy,w,h)真实坐标
+    def _collate_fn(self, getitem_batch):  # 自定义__getitem__合并方式
+        image_list = []
+        label_matrix_list = [[] for _ in range(len(getitem_batch[0][1]))]
+        judge_matrix_list = [[] for _ in range(len(getitem_batch[0][2]))]
+        label_list = []
+        for i in range(len(getitem_batch)):  # 遍历所有__getitem__
+            image = getitem_batch[i][0]
+            label_matrix = getitem_batch[i][1]
+            judge_matrix = getitem_batch[i][2]
+            label = getitem_batch[i][3]
+            image_list.append(image)
+            for j in range(len(label_matrix)):  # 遍历每个输出层
+                label_matrix_list[j].append(label_matrix[j])
+                judge_matrix_list[j].append(judge_matrix[j])
+            label_list.append(label)
+        # 合并
+        image_batch = torch.stack(image_list, dim=0)
+        for i in range(len(label_matrix_list)):
+            label_matrix_list[i] = torch.stack(label_matrix_list[i], dim=0)
+            judge_matrix_list[i] = torch.stack(judge_matrix_list[i], dim=0)
+        return image_batch, label_matrix_list, judge_matrix_list, label_list  # 均为(Cx,Cy,w,h)真实坐标
