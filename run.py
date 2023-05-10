@@ -43,7 +43,7 @@ parser.add_argument('--loss_weight', default=((1 / 3, 0.2, 0.6, 0.2), (1 / 3, 0.
 parser.add_argument('--label_smooth', default=(0.01, 0.99), type=tuple, help='|标签平滑的值|')
 parser.add_argument('--epoch', default=80, type=int, help='|训练轮数|')
 parser.add_argument('--batch', default=4, type=int, help='|训练批量大小|')
-parser.add_argument('--lr_start', default=0.001, type=float, help='|初始学习率，训练中采用adam算法|')
+parser.add_argument('--lr_start', default=0.001, type=float, help='|初始学习率，训练中采用adam算法，前3轮有预热训练|')
 parser.add_argument('--lr_end', default=0.00005, type=float, help='|最终学习率|')
 parser.add_argument('--lr_adjust_num', default=50, type=int, help='|从初始学习率到最终学习率经过的调整次数，损失下降慢时才调整|')
 parser.add_argument('--device', default='cuda', type=str, help='|训练设备|')
