@@ -41,7 +41,7 @@ parser.add_argument('--output_class', default=20, type=int, help='|输出的类�
 parser.add_argument('--loss_weight', default=((1 / 3, 0.2, 0.6, 0.2), (1 / 3, 0.3, 0.5, 0.2), (1 / 3, 0.4, 0.4, 0.2)),
                     type=tuple, help='|每个输出层(从大到小排序)的权重->[总权重、边框权重、置信度权重、分类权重]|')
 parser.add_argument('--label_smooth', default=(0.01, 0.99), type=tuple, help='|标签平滑的值|')
-parser.add_argument('--epoch', default=150, type=int, help='|训练轮数|')
+parser.add_argument('--epoch', default=120, type=int, help='|训练轮数|')
 parser.add_argument('--batch', default=4, type=int, help='|训练批量大小|')
 parser.add_argument('--lr_start', default=0.001, type=float, help='|初始学习率，训练中采用adam算法，前3轮有预热训练|')
 parser.add_argument('--lr_end', default=0.00001, type=float, help='|最终学习率|')
