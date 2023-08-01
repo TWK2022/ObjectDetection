@@ -45,21 +45,10 @@ def iou(pred, true):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
 
 def nms(pred, iou_threshold):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
     pred[:, 2:4] = pred[:, 0:2] + pred[:, 2:4]  # (x_min,y_min,x_max,y_max)真实坐标
-    index = torchvision.ops.nms(pred[:, 0:4], pred[:, 4], iou_threshold)[:100]  # 非极大值抑制，最多100
+    index = torchvision.ops.nms(pred[:, 0:4], pred[:, 4], 1 - iou_threshold)[:100]  # 非极大值抑制，最多100
     pred = pred[index]
     pred[:, 2:4] = pred[:, 2:4] - pred[:, 0:2]  # (x_min,y_min,w,h)真实坐标
     return pred
-    # result = []
-    # while len(pred) > 0:
-    #     result.append(pred[0])  # 每轮开始时添加第一个到结果中
-    #     pred = pred[1:]
-    #     if len(pred) > 0:
-    #         target = result[-1]
-    #         iou_all = iou_single(pred, target)
-    #         judge = torch.where(iou_all < iou_threshold, True, False)
-    #         pred = pred[judge]
-    # pred = torch.stack(result, dim=0)
-    # return pred
 
 
 def nms_tp_fn_fp(pred, true, iou_threshold):  # 输入为(batch,(x_min,y_min,w,h,其他,类别号))相对/真实坐标
@@ -76,36 +65,3 @@ def nms_tp_fn_fp(pred, true, iou_threshold):  # 输入为(batch,(x_min,y_min,w,h
         fn += len(pred[judge_fn])  # 最多只有一个
     fp = len(pred) - tp - fn
     return tp, fp, fn
-
-
-def tp_tn_fp_fn(pred, true, judge, confidence_threshold, iou_threshold):  # 对网络输出(单个/批量)求非极大值抑制前的指标
-    tp = 0
-    tn = 0
-    tp_fn = 0
-    tn_fp = 0
-    for i in range(len(pred)):
-        if True in judge[i]:  # 有需要预测的位置
-            pred_judge = pred[i][judge[i]]
-            true_judge = true[i][judge[i]]
-            pred_judge, true_judge = center_to_min(pred_judge, true_judge)  # Cx,Cy转为x_min,y_min
-            judge_opposite = ~judge[i]  # True和False取反
-            pred_confidence = pred_judge[..., 4]  # 需要预测的位置
-            pred_confidence_opposite = pred[i][judge_opposite][..., 4]  # 不需要预测的位置
-            pred_class = torch.argmax(pred_judge[..., 5:], dim=1)
-            true_class = torch.argmax(pred_judge[..., 5:], dim=1)
-            judge_tp = torch.where((pred_confidence >= confidence_threshold) & (pred_class == true_class) &
-                                   (iou(pred_judge[..., 0:4], true_judge[..., 0:4]) > iou_threshold), True, False)
-            judge_tn = torch.where(pred_confidence_opposite < confidence_threshold, True, False)
-            tp_fn += len(pred_confidence)
-            tp += len(pred_confidence[judge_tp])
-            tn_fp += len(pred_confidence_opposite)
-            tn += len(pred_confidence_opposite[judge_tn])
-        else:  # 所有位置都不需要预测
-            pred_confidence_opposite = pred[i][..., 4]  # 不需要预测的位置
-            judge_tn = torch.where(pred_confidence_opposite < confidence_threshold, True, False)
-            tn_fp += len(pred_confidence_opposite)
-            tn += len(pred_confidence_opposite[judge_tn])
-    # 计算指标
-    fp = tn_fp - tn
-    fn = tp_fn - tp
-    return tp, tn, fp, fn

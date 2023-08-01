@@ -23,3 +23,4 @@ def check_image(txt_path):
 if __name__ == '__main__':
     check_image(args.train_path)
     check_image(args.val_path)
+    print(f'| 已完成{args.data_path}中train.txt和val.txt所需要的图片检擦 |')

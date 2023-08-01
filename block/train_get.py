@@ -125,11 +125,11 @@ def train_get(args, data_dict, model_dict, loss):
         torch.cuda.empty_cache()
         # 验证
         if args.local_rank == 0:  # 分布式时只验证一次
-            val_loss, val_frame_loss, val_confidence_loss, val_class_loss, accuracy, precision, recall, m_ap, \
-            nms_precision, nms_recall, nms_m_ap = val_get(args, val_dataloader, model, loss, ema)
+            val_loss, val_frame_loss, val_confidence_loss, val_class_loss, precision, recall, m_ap \
+                = val_get(args, val_dataloader, model, loss, ema)
         # 保存
         if args.local_rank == 0:  # 分布式时只保存一次
-            model_dict['model'] = model.module.eval() if args.distributed else model.eval()
+            model_dict['model'] = model.module if args.distributed else model.eval()
             model_dict['epoch'] = epoch
             model_dict['optimizer_state_dict'] = optimizer.state_dict()
             model_dict['lr_adjust_item'] = optimizer_adjust.lr_adjust_item
@@ -138,10 +138,9 @@ def train_get(args, data_dict, model_dict, loss):
             model_dict['train_loss'] = train_loss
             model_dict['val_loss'] = val_loss
             model_dict['val_m_ap'] = m_ap
-            model_dict['val_nms_m_ap'] = nms_m_ap
             torch.save(model_dict, 'last.pt')  # 保存最后一次训练的模型
-            if nms_m_ap > 0.25 and nms_m_ap > model_dict['standard']:
-                model_dict['standard'] = nms_m_ap
+            if m_ap > 0.25 and m_ap > model_dict['standard']:
+                model_dict['standard'] = m_ap
                 torch.save(model_dict, args.save_name)  # 保存最佳模型
                 print('\n| 保存最佳模型:{} | val_m_ap:{:.4f} |\n'.format(args.save_name, m_ap))
             # wandb
@@ -211,7 +210,7 @@ class torch_dataset(torch.utils.data.Dataset):
         # 合并为标签
         label = torch.concat([frame, confidence, cls], dim=1)  # (Cx,Cy,w,h)真实坐标
         # 标签矩阵处理
-        label_matrix_list = [0 for _ in range(len(self.output_num))]  # 存放每个输出层的标签矩阵
+        label_matrix_list = [0 for _ in range(len(self.output_num))]  # 存放每个输出层的标签矩阵，(Cx,Cy,w,h)真实坐标
         judge_matrix_list = [0 for _ in range(len(self.output_num))]  # 存放每个输出层的判断矩阵
         for i in range(len(self.output_num)):  # 遍历每个输出层
             label_matrix = torch.zeros(self.output_num[i], self.output_size[i], self.output_size[i],

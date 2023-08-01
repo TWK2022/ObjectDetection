@@ -1,7 +1,7 @@
 import tqdm
 import torch
 from model.layer import decode
-from block.metric_get import tp_tn_fp_fn, confidence_screen, nms, nms_tp_fn_fp
+from block.metric_get import confidence_screen, nms, nms_tp_fn_fp
 
 
 def val_get(args, val_dataloader, model, loss, ema):
@@ -12,10 +12,6 @@ def val_get(args, val_dataloader, model, loss, ema):
         val_frame_loss = 0  # 记录边框损失
         val_confidence_loss = 0  # 记录置信度框损失
         val_class_loss = 0  # 记录类别损失
-        tp_all = 0
-        tn_all = 0
-        fp_all = 0
-        fn_all = 0
         nms_tp_all = 0
         nms_fp_all = 0
         nms_fn_all = 0
@@ -30,16 +26,10 @@ def val_get(args, val_dataloader, model, loss, ema):
             val_frame_loss += frame_loss.item()
             val_confidence_loss += confidence_loss.item()
             val_class_loss += class_loss.item()
-            # 计算指标
+            # 解码输出
             pred_batch = decode_model(pred_batch)  # (Cx,Cy,w,h,confidence...)原始输出->(Cx,Cy,w,h,confidence...)真实坐标
-            # 非极大值抑制前(所有输出)
-            tp, tn, fp, fn = tp_tn_fp_fn(pred_batch, true_batch, judge_batch, 0.5, args.iou_threshold)
-            tp_all += tp
-            tn_all += tn
-            fp_all += fp
-            fn_all += fn
-            # 非极大值抑制后(最终显示的框)
-            for i in range(len(pred_batch[0])):  # 遍历每张图片
+            # 统计指标
+            for i in range(pred_batch[0].shape[0]):  # 遍历每张图片
                 true = label_list[i].to(args.device)
                 pred = [_[i] for _ in pred_batch]  # (Cx,Cy,w,h)真实坐标
                 pred = confidence_screen(pred, args.confidence_threshold)  # 置信度筛选
@@ -47,6 +37,7 @@ def val_get(args, val_dataloader, model, loss, ema):
                     nms_fn_all += len(true)
                     continue
                 pred[:, 0:2] = pred[:, 0:2] - pred[:, 2:4] / 2  # (x_min,y_min,w,h)真实坐标
+                true[:, 0:2] = true[:, 0:2] - true[:, 2:4] / 2  # (x_min,y_min,w,h)真实坐标
                 pred = nms(pred, args.iou_threshold)[:100]  # 非极大值抑制，最多100
                 if len(true) == 0:  # 该图片没有标签
                     nms_fp_all += len(pred)
@@ -60,21 +51,11 @@ def val_get(args, val_dataloader, model, loss, ema):
         val_frame_loss = val_frame_loss / (item + 1)
         val_confidence_loss = val_confidence_loss / (item + 1)
         val_class_loss = val_class_loss / (item + 1)
-        print('\n| val_loss{:.4f} | val_frame_loss:{:.4f} | val_confidence_loss:{:.4f} |'
-              ' val_class_loss:{:.4f} |'
+        print('\n| val_loss{:.4f} | val_frame_loss:{:.4f} | val_confidence_loss:{:.4f} | val_class_loss:{:.4f} |'
               .format(val_loss, val_frame_loss, val_confidence_loss, val_class_loss))
-        # 计算非极大值抑制前平均指标(所有输出)
-        accuracy = (tp_all + tn_all) / (tp_all + tn_all + fp_all + fn_all)
-        precision = tp_all / (tp_all + fp_all + 0.001)
-        recall = tp_all / (tp_all + fn_all + 0.001)
+        # 计算指标
+        precision = nms_tp_all / (nms_tp_all + nms_fp_all + 0.001)
+        recall = nms_tp_all / (nms_tp_all + nms_fn_all + 0.001)
         m_ap = precision * recall
-        print('| accuracy:{:.4f} | precision:{:.4f} | recall:{:.4f} | m_ap:{:.4f} |'
-              .format(accuracy, precision, recall, m_ap))
-        # 计算非极大值抑制后平均指标(最终显示的框)
-        nms_precision = nms_tp_all / (nms_tp_all + nms_fp_all + 0.001)
-        nms_recall = nms_tp_all / (nms_tp_all + nms_fn_all + 0.001)
-        nms_m_ap = nms_precision * nms_recall
-        print('| nms_precision:{:.4f} | nms_recall:{:.4f} | nms_m_ap:{:.4f} |'
-              .format(nms_precision, nms_recall, nms_m_ap))
-    return val_loss, val_frame_loss, val_confidence_loss, val_class_loss, accuracy, precision, recall, m_ap, \
-           nms_precision, nms_recall, nms_m_ap
+        print('| precision:{:.4f} | recall:{:.4f} | m_ap:{:.4f} |'.format(precision, recall, m_ap))
+    return val_loss, val_frame_loss, val_confidence_loss, val_class_loss, precision, recall, m_ap

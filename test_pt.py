@@ -10,13 +10,13 @@ from model.layer import deploy
 
 # -------------------------------------------------------------------------------------------------------------------- #
 # 设置
-parser = argparse.ArgumentParser(description='pt模型推理')
-parser.add_argument('--model_path', default='best.pt', type=str, help='|pt模型位置|')
+parser = argparse.ArgumentParser(description='|pt模型推理|')
+parser.add_argument('--model_path', default='last.pt', type=str, help='|pt模型位置|')
 parser.add_argument('--image_path', default='image', type=str, help='|图片文件夹位置|')
 parser.add_argument('--input_size', default=640, type=int, help='|模型输入图片大小|')
 parser.add_argument('--batch', default=1, type=int, help='|输入图片批量|')
 parser.add_argument('--confidence_threshold', default=0.35, type=float, help='|置信筛选度阈值(>阈值留下)|')
-parser.add_argument('--iou_threshold', default=0.65, type=float, help='|iou阈值筛选阈值(>阈值留下)|')
+parser.add_argument('--iou_threshold', default=0.65, type=float, help='|iou阈值筛选阈值(<阈值留下)|')
 parser.add_argument('--device', default='cuda', type=str, help='|用CPU/GPU推理|')
 parser.add_argument('--num_worker', default=0, type=int, help='|CPU在处理数据时使用的进程数，0表示只有一个主进程，一般为0、2、4、8|')
 parser.add_argument('--float16', default=False, type=bool, help='|推理数据类型，要支持float16的GPU，False时为float32|')
@@ -58,7 +58,7 @@ def iou_single(A, B):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
 
 def nms(pred, iou_threshold):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
     pred[:, 2:4] = pred[:, 0:2] + pred[:, 2:4]  # (x_min,y_min,x_max,y_max)真实坐标
-    index = torchvision.ops.nms(pred[:, 0:4], pred[:, 4], iou_threshold)[:100]  # 非极大值抑制，最多100
+    index = torchvision.ops.nms(pred[:, 0:4], pred[:, 4], 1 - iou_threshold)[:100]  # 非极大值抑制，最多100
     pred = pred[index]
     pred[:, 2:4] = pred[:, 2:4] - pred[:, 0:2]  # (x_min,y_min,w,h)真实坐标
     return pred
@@ -80,7 +80,7 @@ def draw(image, frame, cls, name):  # 输入(x_min,y_min,w,h)真实坐标
 def test_pt():
     # 加载模型
     model_dict = torch.load(args.model_path, map_location='cpu')
-    model = model_dict['model']
+    model = model_dict['model'].eval()
     model = deploy(model, args.input_size)
     model.half().eval().to(args.device) if args.float16 else model.float().eval().to(args.device)
     print('| 模型加载成功:{} |'.format(args.model_path))
@@ -95,7 +95,7 @@ def test_pt():
             image_batch = image_batch.to(args.device)
             pred_batch = model(image_batch)
             # 对batch中的每张图片分别操作
-            for i in range(len(pred_batch[0])):
+            for i in range(pred_batch[0].shape[0]):
                 pred = [_[i] for _ in pred_batch]  # (Cx,Cy,w,h)
                 pred = confidence_screen(pred, args.confidence_threshold)  # 置信度筛选
                 if pred.shape[0] == 0:
