@@ -139,7 +139,7 @@ def train_get(args, data_dict, model_dict, loss):
             model_dict['val_loss'] = val_loss
             model_dict['val_m_ap'] = m_ap
             torch.save(model_dict, 'last.pt')  # 保存最后一次训练的模型
-            if m_ap > 0.25 and m_ap > model_dict['standard']:
+            if m_ap > 0.1 and m_ap > model_dict['standard']:
                 model_dict['standard'] = m_ap
                 torch.save(model_dict, args.save_name)  # 保存最佳模型
                 print('\n| 保存最佳模型:{} | val_m_ap:{:.4f} |\n'.format(args.save_name, m_ap))
@@ -156,13 +156,9 @@ def train_get(args, data_dict, model_dict, loss):
                                   'val_loss/val_frame_loss': val_frame_loss,
                                   'val_loss/val_confidence_loss': val_confidence_loss,
                                   'val_loss/val_class_loss': val_class_loss,
-                                  'val_metric/val_accuracy': accuracy,
                                   'val_metric/val_precision': precision,
                                   'val_metric/val_recall': recall,
-                                  'val_metric/val_m_ap': m_ap,
-                                  'val_nms_metric/val_nms_precision': nms_precision,
-                                  'val_nms_metric/val_nms_recall': nms_recall,
-                                  'val_nms_metric/val_nms_m_ap': nms_m_ap})
+                                  'val_metric/val_m_ap': m_ap})
                 args.wandb_run.log(wandb_log)
         torch.distributed.barrier() if args.distributed else None  # 分布式时每轮训练后让所有GPU进行同步，快的GPU会在此等待
     return model_dict
