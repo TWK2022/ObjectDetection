@@ -77,7 +77,7 @@ def draw(image, frame, cls, name):  # 输入(x_min,y_min,w,h)真实坐标
     cv2.destroyAllWindows()
 
 
-def test_pt():
+def test_pt(args):
     # 加载模型
     model_dict = torch.load(args.model_path, map_location='cpu')
     model = model_dict['model'].eval()
@@ -131,4 +131,4 @@ class torch_dataset(torch.utils.data.Dataset):
 
 
 if __name__ == '__main__':
-    test_pt()
+    test_pt(args)
