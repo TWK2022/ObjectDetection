@@ -18,7 +18,10 @@
 >使用训练好的pt模型预测
 ### 3，export_onnx.py
 >将pt模型导出为onnx模型
+### 7，flask_start.py
+>用flask将程序包装成一个服务，并在服务器上启动
+### 8，flask_request.py
 ### 其他
->github链接：https://github.com/TWK2022/ObjectDetection  
->学习笔记：https://github.com/TWK2022/notebook  
->邮箱：1024565378@qq.com  
+>github链接: https://github.com/TWK2022/ObjectDetection  
+>学习笔记: https://github.com/TWK2022/notebook  
+>邮箱: 1024565378@qq.com  

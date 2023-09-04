@@ -15,7 +15,7 @@ def encode(image_path):
 
 if __name__ == '__main__':
     url = 'http://0.0.0.0:9999/test/'  # 根据flask_start中的设置: http://host:port/name/
-    path_dir = 'image/test'
+    path_dir = 'image'
     path_list = os.listdir(path_dir)
     for image_path in path_list:
         image_path = f'{path_dir}/{image_path}'
