@@ -2,7 +2,7 @@ import torch
 
 
 def loss_get(args):
-    loss = loss_prepare(args)._load
+    loss = loss_prepare(args)
     return loss
 
 
@@ -21,7 +21,7 @@ class loss_prepare(object):
         for i in range(3):
             self.grid[i] = torch.arange(output_size[i])
 
-    def _load(self, pred, true, judge):  # pred与true的形式对应，judge为True和False组成的矩阵，True代表该位置有标签需要预测
+    def __call__(self, pred, true, judge):  # pred与true的形式对应，judge为True和False组成的矩阵，True代表该位置有标签需要预测
         frame_loss = 0  # 总边框损失
         confidence_loss = 0  # 总置信度损失
         class_loss = 0  # 总分类损失
