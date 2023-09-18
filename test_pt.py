@@ -72,15 +72,12 @@ def draw(image, frame, cls, name):  # 输入(x_min,y_min,w,h)真实坐标
         cv2.rectangle(image, a, b, color=(0, 255, 0), thickness=2)
         cv2.putText(image, 'class:' + str(cls[i]), a, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
     cv2.imwrite('pred_' + name, image)
-    cv2.imshow('pred_' + name, image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
 
 
 def test_pt(args):
     # 加载模型
     model_dict = torch.load(args.model_path, map_location='cpu')
-    model = model_dict['model'].eval()
+    model = model_dict['model']
     model = deploy(model, args.input_size)
     model.half().eval().to(args.device) if args.float16 else model.float().eval().to(args.device)
     m_ap = round(model_dict['standard'], 3)

@@ -14,12 +14,13 @@ class loss_prepare(object):
         self.loss_weight = args.loss_weight  # 每个输出层的权重
         self.stride = (8, 16, 32)
         # 预测值边框解码部分
+        self.device = args.device
         output_size = [int(args.input_size // i) for i in self.stride]
         self.anchor = (((12, 16), (19, 36), (40, 28)), ((36, 75), (76, 55), (72, 146)),
                        ((142, 110), (192, 243), (459, 401)))
         self.grid = [0, 0, 0]
         for i in range(3):
-            self.grid[i] = torch.arange(output_size[i])
+            self.grid[i] = torch.arange(output_size[i]).to(args.device)
 
     def __call__(self, pred, true, judge):  # pred与true的形式对应，judge为True和False组成的矩阵，True代表该位置有标签需要预测
         frame_loss = 0  # 总边框损失
@@ -44,10 +45,10 @@ class loss_prepare(object):
         return frame_loss + confidence_loss + class_loss, frame_loss, confidence_loss, class_loss
 
     def _frame_decode(self, output):
-        device = output[0].device
+        # # 复制
+        # output = [_.clone() for _ in pred]
         # 遍历每一个大层
         for i in range(len(output)):
-            self.grid[i] = self.grid[i].to(device)  # 放到对应的设备上
             output[i][..., 0:4] = output[i][..., 0:4].sigmoid()  # 归一化
             # 中心坐标[0-1]->[-0.5-1.5]->[-0.5*stride-80/40/20.5*stride]
             output[i][..., 0] = (2 * output[i][..., 0] - 0.5 + self.grid[i].unsqueeze(1)) * self.stride[i]

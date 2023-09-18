@@ -32,8 +32,12 @@ parser.add_argument('--wandb', default=False, type=bool, help='|是否使用wand
 parser.add_argument('--wandb_project', default='test', type=str, help='|wandb项目名称|')
 parser.add_argument('--wandb_name', default='train', type=str, help='|wandb项目中的训练名称|')
 parser.add_argument('--wandb_image_num', default=16, type=int, help='|wandb保存展示图片的数量|')
-parser.add_argument('--save_name', default='best.pt', type=str, help='|保存模型的位置|')
-parser.add_argument('--weight', default='last.pt', type=str, help='|已有模型的位置，如果没找到模型则会创建新模型|')
+parser.add_argument('--weight', default='last.pt', type=str, help='|已有模型的位置，如果没找到模型才会创建剪枝模型/新模型|')
+parser.add_argument('--save_path', default='best.pt', type=str, help='|最佳模型的保存位置，除此之外每轮结束都会保存last.pt|')
+parser.add_argument('--prune', default=False, type=bool, help='|模型剪枝后再训练(部分模型有)，需要提供已经训练好的prune_weight|')
+parser.add_argument('--prune_ratio', default=0.5, type=float, help='|m模型剪枝时的保留比例|')
+parser.add_argument('--prune_weight', default='best.pt', type=str, help='|模型剪枝时使用的模型，会创建剪枝模型和训练模型|')
+parser.add_argument('--prune_save', default='prune_best.pt', type=str, help='|最佳模型的保存位置，除此之外每轮结束都会保存prune_last.pt|')
 parser.add_argument('--model', default='yolov7', type=str, help='|模型选择|')
 parser.add_argument('--model_type', default='n', type=str, help='|模型的型号参数，部分模型有|')
 parser.add_argument('--input_size', default=640, type=int, help='|输入图片大小|')
@@ -42,11 +46,13 @@ parser.add_argument('--loss_weight', default=((1 / 3, 0.2, 0.6, 0.2), (1 / 3, 0.
                     type=tuple, help='|每个输出层(从大到小排序)的权重->[总权重、边框权重、置信度权重、分类权重]|')
 parser.add_argument('--label_smooth', default=(0.01, 0.99), type=tuple, help='|标签平滑的值|')
 parser.add_argument('--epoch', default=120, type=int, help='|训练轮数|')
-parser.add_argument('--batch', default=2, type=int, help='|训练批量大小|')
+parser.add_argument('--batch', default=1, type=int, help='|训练批量大小|')
 parser.add_argument('--lr_start', default=0.001, type=float, help='|初始学习率，训练中采用adam算法，前3轮有预热训练|')
 parser.add_argument('--lr_end', default=0.0001, type=float, help='|最终学习率|')
 parser.add_argument('--lr_adjust_num', default=50, type=int, help='|从初始学习率到最终学习率经过的调整次数，余玄下降法|')
 parser.add_argument('--lr_adjust_threshold', default=0.97, type=float, help='|本轮训练损失大于上一轮损失的比例时才调整|')
+parser.add_argument('--regularization', default='L2', type=str, help='|正则化，有L2、None|')
+parser.add_argument('--r_value', default=0.0005, type=float, help='|正则化的权重系数|')
 parser.add_argument('--device', default='cuda', type=str, help='|训练设备|')
 parser.add_argument('--latch', default=True, type=bool, help='|模型和数据是否为锁存，True为锁存|')
 parser.add_argument('--num_worker', default=0, type=int, help='|CPU在处理数据时使用的进程数，0表示只有一个主进程，一般为0、2、4、8|')
@@ -90,6 +96,8 @@ if args.local_rank == 0:
     assert os.path.exists(f'{args.data_path}/class.txt'), 'data_path中缺少:class.txt'
     if os.path.exists(args.weight):  # 优先加载已有模型args.weight继续训练
         print(f'| 加载已有模型:{args.weight} |')
+    elif args.prune:
+        print(f'| 加模型并剪枝训练:{args.prune_weight} |')
     else:  # 创建自定义模型args.model
         assert os.path.exists(f'model/{args.model}.py'), f'没有此自定义模型:{args.model}'
         print(f'| 创建自定义模型:{args.model} | 型号:{args.model_type} |')

@@ -5,15 +5,16 @@ import torch
 import numpy as np
 from block.val_get import val_get
 from block.ModelEMA import ModelEMA
-from block.lr_adjust import lr_adjust
+from block.lr_get import adam, lr_adjust
+import tqdm
+import torch
 
 
 def train_get(args, data_dict, model_dict, loss):
     # 加载模型
     model = model_dict['model'].to(args.device, non_blocking=args.latch)
-
     # 学习率
-    optimizer = torch.optim.Adam(model.parameters(), lr=args.lr_start, betas=(0.937, 0.999), weight_decay=0.0005)
+    optimizer = adam(args.regularization, args.r_value, model.parameters(), lr=args.lr_start, betas=(0.937, 0.999))
     optimizer.load_state_dict(model_dict['optimizer_state_dict']) if model_dict['optimizer_state_dict'] else None
     optimizer_adjust = lr_adjust(args, model_dict['lr_adjust_item'])  # 学习率调整函数
     optimizer = optimizer_adjust(optimizer, model_dict['epoch'] + 1, 0)  # 初始化学习率
@@ -138,11 +139,12 @@ def train_get(args, data_dict, model_dict, loss):
             model_dict['train_loss'] = train_loss
             model_dict['val_loss'] = val_loss
             model_dict['val_m_ap'] = m_ap
-            torch.save(model_dict, 'last.pt')  # 保存最后一次训练的模型
+            torch.save(model_dict, 'last.pt' if not args.prune else 'prune_last.pt')  # 保存最后一次训练的模型
             if m_ap > 0.1 and m_ap > model_dict['standard']:
                 model_dict['standard'] = m_ap
-                torch.save(model_dict, args.save_name)  # 保存最佳模型
-                print('\n| 保存最佳模型:{} | val_m_ap:{:.4f} |\n'.format(args.save_name, m_ap))
+                save_path = args.save_path if not args.prune else args.prune_save
+                torch.save(model_dict, save_path)  # 保存最佳模型
+                print('\n| 保存最佳模型:{} | val_m_ap:{:.4f} |\n'.format(args.save_path, m_ap))
             # wandb
             if args.wandb:
                 wandb_log = {}
@@ -239,14 +241,14 @@ class torch_dataset(torch.utils.data.Dataset):
                     if wh_screen[k]:  # 根据wh筛选
                         label_matrix[j, x_grid[k], y_grid[k]] = label[k]
                         judge_matrix[j, x_grid[k], y_grid[k]] = True
-                # 将扩充的标签填入对应的标签矩阵位置
-                for k in range(len(label)):
-                    if wh_screen[k] and not judge_matrix[j, x_grid_add[k], y_grid[k]]:  # 需要该位置有空位
-                        label_matrix[j, x_grid_add[k], y_grid[k]] = label[k]
-                        judge_matrix[j, x_grid_add[k], y_grid[k]] = True
-                    if wh_screen[k] and not judge_matrix[j, x_grid[k], y_grid_add[k]]:  # 需要该位置有空位
-                        label_matrix[j, x_grid[k], y_grid_add[k]] = label[k]
-                        judge_matrix[j, x_grid[k], y_grid_add[k]] = True
+                # # 将扩充的标签填入对应的标签矩阵位置
+                # for k in range(len(label)):
+                #     if wh_screen[k] and not judge_matrix[j, x_grid_add[k], y_grid[k]]:  # 需要该位置有空位
+                #         label_matrix[j, x_grid_add[k], y_grid[k]] = label[k]
+                #         judge_matrix[j, x_grid_add[k], y_grid[k]] = True
+                #     if wh_screen[k] and not judge_matrix[j, x_grid[k], y_grid_add[k]]:  # 需要该位置有空位
+                #         label_matrix[j, x_grid[k], y_grid_add[k]] = label[k]
+                #         judge_matrix[j, x_grid[k], y_grid_add[k]] = True
             # 存放每个输出层的结果
             label_matrix_list[i] = label_matrix
             judge_matrix_list[i] = judge_matrix

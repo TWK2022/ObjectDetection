@@ -20,6 +20,7 @@ def val_get(args, val_dataloader, model, loss, ema):
             for i in range(len(true_batch)):  # 将标签矩阵放到对应设备上
                 true_batch[i] = true_batch[i].to(args.device, non_blocking=args.latch)
             pred_batch = model(image_batch)
+            clone_batch = [_.clone() for _ in pred_batch]  # 计算损失会改变pred_batch
             # 计算损失
             loss_batch, frame_loss, confidence_loss, class_loss = loss(pred_batch, true_batch, judge_batch)
             val_loss += loss_batch.item()
@@ -27,11 +28,11 @@ def val_get(args, val_dataloader, model, loss, ema):
             val_confidence_loss += confidence_loss.item()
             val_class_loss += class_loss.item()
             # 解码输出
-            pred_batch = decode_model(pred_batch)  # (Cx,Cy,w,h,confidence...)原始输出->(Cx,Cy,w,h,confidence...)真实坐标
+            clone_batch = decode_model(clone_batch)  # (Cx,Cy,w,h,confidence...)原始输出->(Cx,Cy,w,h,confidence...)真实坐标
             # 统计指标
-            for i in range(pred_batch[0].shape[0]):  # 遍历每张图片
+            for i in range(clone_batch[0].shape[0]):  # 遍历每张图片
                 true = label_list[i].to(args.device)
-                pred = [_[i] for _ in pred_batch]  # (Cx,Cy,w,h)真实坐标
+                pred = [_[i] for _ in clone_batch]  # (Cx,Cy,w,h)真实坐标
                 pred = confidence_screen(pred, args.confidence_threshold)  # 置信度筛选
                 if len(pred) == 0:  # 该图片没有预测值
                     nms_fn_all += len(true)
