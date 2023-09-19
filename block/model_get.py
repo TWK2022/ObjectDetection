@@ -67,7 +67,6 @@ def prune(args, model):
                 weight = module.weight.data.clone()[index_list[index]]
             elif index == weight_len:
                 weight = module.weight.data.clone()
-                weight = weight[:, index_list[index - 1], :, :]
             else:
                 weight = module.weight.data.clone()[index_list[index]]
                 weight = weight[:, index_list[index - 1], :, :]

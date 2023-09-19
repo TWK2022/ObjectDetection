@@ -92,16 +92,27 @@ class elan(torch.nn.Module):  # in_->out_，len->len
 
 
 class elan_h(torch.nn.Module):  # in_->out_，len->len
-    def __init__(self, in_, out_):
+    def __init__(self, in_, out_, config=None):
         super().__init__()
-        self.cbs0 = cbs(in_, in_ // 2, kernel_size=1, stride=1)
-        self.cbs1 = cbs(in_, in_ // 2, kernel_size=1, stride=1)
-        self.cbs2 = cbs(in_ // 2, in_ // 4, kernel_size=3, stride=1)
-        self.cbs3 = cbs(in_ // 4, in_ // 4, kernel_size=3, stride=1)
-        self.cbs4 = cbs(in_ // 4, in_ // 4, kernel_size=3, stride=1)
-        self.cbs5 = cbs(in_ // 4, in_ // 4, kernel_size=3, stride=1)
-        self.concat6 = concat()
-        self.cbs7 = cbs(2 * in_, out_, kernel_size=1, stride=1)
+        if not config:  # 正常版本
+            self.cbs0 = cbs(in_, in_ // 2, kernel_size=1, stride=1)
+            self.cbs1 = cbs(in_, in_ // 2, kernel_size=1, stride=1)
+            self.cbs2 = cbs(in_ // 2, in_ // 4, kernel_size=3, stride=1)
+            self.cbs3 = cbs(in_ // 4, in_ // 4, kernel_size=3, stride=1)
+            self.cbs4 = cbs(in_ // 4, in_ // 4, kernel_size=3, stride=1)
+            self.cbs5 = cbs(in_ // 4, in_ // 4, kernel_size=3, stride=1)
+            self.concat6 = concat()
+            self.cbs7 = cbs(2 * in_, out_, kernel_size=1, stride=1)
+        else:  # 剪枝版本。len(config) = 7
+            self.cbs0 = cbs(in_, config[0], kernel_size=1, stride=1)
+            self.cbs1 = cbs(in_, config[1], kernel_size=1, stride=1)
+            self.cbs2 = cbs(config[1], config[2], kernel_size=3, stride=1)
+            self.cbs3 = cbs(config[2], config[3], kernel_size=3, stride=1)
+            self.cbs4 = cbs(config[3], config[4], kernel_size=3, stride=1)
+            self.cbs5 = cbs(config[4], config[5], kernel_size=3, stride=1)
+            self.concat6 = concat()
+            self.cbs7 = cbs(config[0] + config[1] + config[2] + config[3] + config[4] + config[5], config[6],
+                            kernel_size=1, stride=1)
 
     def forward(self, x):
         x0 = self.cbs0(x)
@@ -109,7 +120,7 @@ class elan_h(torch.nn.Module):  # in_->out_，len->len
         x2 = self.cbs2(x1)
         x3 = self.cbs3(x2)
         x4 = self.cbs4(x3)
-        x5 = self.cbs4(x4)
+        x5 = self.cbs5(x4)
         x = self.concat6([x0, x1, x2, x3, x4, x5])
         x = self.cbs7(x)
         return x

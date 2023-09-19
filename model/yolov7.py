@@ -18,27 +18,27 @@ class yolov7(torch.nn.Module):
         # 网络结构
         if not args.prune:  # 正常版本
             self.l0 = cbs(3, dim, 3, 1)
-            self.l1 = cbs(dim, 2 * dim, 3, 2)  # 1/2
+            self.l1 = cbs(dim, 2 * dim, 3, 2)  # input_size/2
             self.l2 = cbs(2 * dim, 2 * dim, 3, 1)
-            self.l3 = cbs(2 * dim, 4 * dim, 3, 2)  # 1/4
+            self.l3 = cbs(2 * dim, 4 * dim, 3, 2)  # input_size/4
             # ---------- #
             self.l4 = elan(4 * dim, 8 * dim, n)
-            self.l5 = mp(8 * dim, 8 * dim)  # 1/8
+            self.l5 = mp(8 * dim, 8 * dim)  # input_size/8
             self.l6 = elan(8 * dim, 16 * dim, n)
-            self.l7 = mp(16 * dim, 16 * dim)  # 1/16
+            self.l7 = mp(16 * dim, 16 * dim)  # input_size/16
             self.l8 = elan(16 * dim, 32 * dim, n)
-            self.l9 = mp(32 * dim, 32 * dim)  # 1/32
+            self.l9 = mp(32 * dim, 32 * dim)  # input_size/32
             self.l10 = elan(32 * dim, 32 * dim, n)
             self.l11 = sppcspc(32 * dim, 16 * dim)
             self.l12 = cbs(16 * dim, 8 * dim, 1, 1)
             # ---------- #
-            self.l13 = torch.nn.Upsample(scale_factor=2)  # 1/16
+            self.l13 = torch.nn.Upsample(scale_factor=2)  # input_size/16
             self.l8_add = cbs(32 * dim, 8 * dim, 1, 1)
             self.l14 = concat(1)
             self.l15 = elan_h(16 * dim, 8 * dim)
             self.l16 = cbs(8 * dim, 4 * dim, 1, 1)
             # ---------- #
-            self.l17 = torch.nn.Upsample(scale_factor=2)  # 1/8
+            self.l17 = torch.nn.Upsample(scale_factor=2)  # input_size/8
             self.l6_add = cbs(16 * dim, 4 * dim, 1, 1)
             self.l18 = concat(1)
             self.l19 = elan_h(8 * dim, 4 * dim)  # 接output0
@@ -55,43 +55,46 @@ class yolov7(torch.nn.Module):
             self.output1 = head(8 * dim, 3 * (5 + self.output_class))
             self.output2 = head(16 * dim, 3 * (5 + self.output_class))
         else:  # 剪枝版本
-            self.l0 = cbs(3, dim, 3, 1)
-            self.l1 = cbs(dim, 2 * dim, 3, 2)  # 1/2
-            self.l2 = cbs(2 * dim, 2 * dim, 3, 1)
-            self.l3 = cbs(2 * dim, 4 * dim, 3, 2)  # 1/4
+            config = args.prune_num
+            self.l0 = cbs(3, config[0], 1, 1)
+            self.l1 = cbs(config[0], config[1], 3, 2)  # input_size/2
+            self.l2 = cbs(config[1], config[2], 1, 1)
+            self.l3 = cbs(config[2], config[3], 3, 2)  # input_size/4
             # ---------- #
-            self.l4 = elan(4 * dim, 8 * dim, n)
-            self.l5 = mp(8 * dim, 8 * dim)  # 1/8
-            self.l6 = elan(8 * dim, 16 * dim, n)
-            self.l7 = mp(16 * dim, 16 * dim)  # 1/16
-            self.l8 = elan(16 * dim, 32 * dim, n)
-            self.l9 = mp(32 * dim, 32 * dim)  # 1/32
-            self.l10 = elan(32 * dim, 32 * dim, n)
-            self.l11 = sppcspc(32 * dim, 16 * dim)
-            self.l12 = cbs(16 * dim, 8 * dim, 1, 1)
+            self.l4 = elan(config[3], None, n, config[4:7 + 2 * n])
+            self.l5 = mp(config[6 + 2 * n], None, config[7 + 2 * n:10 + 2 * n])  # input_size/8
+            self.l6 = elan(config[7 + 2 * n] + config[9 + 2 * n], None, n, config[10 + 2 * n:13 + 4 * n])
+            self.l7 = mp(config[12 + 4 * n], None, config[13 + 4 * n:16 + 4 * n])  # input_size/16
+            self.l8 = elan(config[13 + 4 * n] + config[15 + 4 * n], None, n, config[16 + 4 * n:19 + 6 * n])
+            self.l9 = mp(config[18 + 6 * n], None, config[19 + 6 * n:22 + 6 * n])  # input_size/32
+            self.l10 = elan(config[19 + 6 * n] + config[21 + 6 * n], None, n, config[22 + 6 * n:25 + 8 * n])
+            self.l11 = sppcspc(config[24 + 8 * n], None, config[25 + 8 * n:32 + 8 * n])
+            self.l12 = cbs(config[31 + 8 * n], config[32 + 8 * n], 1, 1)
             # ---------- #
-            self.l13 = torch.nn.Upsample(scale_factor=2)  # 1/16
-            self.l8_add = cbs(32 * dim, 8 * dim, 1, 1)
+            self.l13 = torch.nn.Upsample(scale_factor=2)  # input_size/16
+            self.l8_add = cbs(config[18 + 6 * n], config[33 + 8 * n], 1, 1)
             self.l14 = concat(1)
-            self.l15 = elan_h(16 * dim, 8 * dim)
-            self.l16 = cbs(8 * dim, 4 * dim, 1, 1)
+            self.l15 = elan_h(config[32 + 8 * n] + config[33 + 8 * n], None, config[34 + 8 * n:41 + 8 * n])
+            self.l16 = cbs(config[40 + 8 * n], config[41 + 8 * n], 1, 1)
             # ---------- #
-            self.l17 = torch.nn.Upsample(scale_factor=2)  # 1/8
-            self.l6_add = cbs(16 * dim, 4 * dim, 1, 1)
+            self.l17 = torch.nn.Upsample(scale_factor=2)  # input_size/8
+            self.l6_add = cbs(config[12 + 4 * n], config[42 + 8 * n], 1, 1)
             self.l18 = concat(1)
-            self.l19 = elan_h(8 * dim, 4 * dim)  # 接output0
+            self.l19 = elan_h(config[41 + 8 * n] + config[42 + 8 * n], None, config[43 + 8 * n:50 + 8 * n])  # 接output0
             # ---------- #
-            self.l20 = mp(4 * dim, 8 * dim)
+            self.l20 = mp(config[49 + 8 * n], None, config[50 + 8 * n:53 + 8 * n])
             self.l21 = concat(1)
-            self.l22 = elan_h(16 * dim, 8 * dim)  # 接output1
+            self.l22 = elan_h(config[40 + 8 * n] + config[50 + 8 * n] + config[52 + 8 * n], None,
+                              config[53 + 8 * n:60 + 8 * n])  # 接output1
             # ---------- #
-            self.l23 = mp(8 * dim, 16 * dim)
+            self.l23 = mp(config[59 + 8 * n], None, config[60 + 8 * n:63 + 8 * n])
             self.l24 = concat(1)
-            self.l25 = elan_h(32 * dim, 16 * dim)  # 接output2
+            self.l25 = elan_h(config[31 + 8 * n] + config[60 + 8 * n] + config[62 + 8 * n], None,
+                              config[63 + 8 * n:70 + 8 * n])  # 接output2
             # ---------- #
-            self.output0 = head(4 * dim, 3 * (5 + self.output_class))
-            self.output1 = head(8 * dim, 3 * (5 + self.output_class))
-            self.output2 = head(16 * dim, 3 * (5 + self.output_class))
+            self.output0 = head(config[49 + 8 * n], 3 * (5 + self.output_class))
+            self.output1 = head(config[59 + 8 * n], 3 * (5 + self.output_class))
+            self.output2 = head(config[69 + 8 * n], 3 * (5 + self.output_class))
 
     def forward(self, x):
         x = self.l0(x)
