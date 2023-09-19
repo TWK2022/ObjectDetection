@@ -27,7 +27,7 @@ from block.train_get import train_get
 # -------------------------------------------------------------------------------------------------------------------- #
 # 设置
 parser = argparse.ArgumentParser(description='|目标检测|')
-parser.add_argument('--data_path', default=r'D:\dataset\ObjectDetection\voc', type=str, help='|数据根目录路径|')
+parser.add_argument('--data_path', default=r'D:\dataset\ObjectDetection\test', type=str, help='|数据根目录路径|')
 parser.add_argument('--wandb', default=False, type=bool, help='|是否使用wandb可视化|')
 parser.add_argument('--wandb_project', default='test', type=str, help='|wandb项目名称|')
 parser.add_argument('--wandb_name', default='train', type=str, help='|wandb项目中的训练名称|')
@@ -46,7 +46,7 @@ parser.add_argument('--loss_weight', default=((1 / 3, 0.3, 0.5, 0.2), (1 / 3, 0.
                     type=tuple, help='|每个输出层(从大到小排序)的权重->[总权重、边框权重、置信度权重、分类权重]|')
 parser.add_argument('--label_smooth', default=(0.01, 0.99), type=tuple, help='|标签平滑的值|')
 parser.add_argument('--epoch', default=150, type=int, help='|训练轮数|')
-parser.add_argument('--batch', default=1, type=int, help='|训练批量大小|')
+parser.add_argument('--batch', default=8, type=int, help='|训练批量大小|')
 parser.add_argument('--lr_start', default=0.001, type=float, help='|初始学习率，训练中采用adam算法，前3轮有预热训练|')
 parser.add_argument('--lr_end', default=0.0001, type=float, help='|最终学习率|')
 parser.add_argument('--lr_adjust_num', default=100, type=int, help='|从初始学习率到最终学习率经过的调整次数，余玄下降法|')
@@ -56,7 +56,7 @@ parser.add_argument('--r_value', default=0.0005, type=float, help='|正则化的
 parser.add_argument('--device', default='cuda', type=str, help='|训练设备|')
 parser.add_argument('--latch', default=True, type=bool, help='|模型和数据是否为锁存，True为锁存|')
 parser.add_argument('--num_worker', default=0, type=int, help='|CPU在处理数据时使用的进程数，0表示只有一个主进程，一般为0、2、4、8|')
-parser.add_argument('--ema', default=False, type=bool, help='|使用平均指数移动(EMA)调整参数|')
+parser.add_argument('--ema', default=True, type=bool, help='|使用平均指数移动(EMA)调整参数|')
 parser.add_argument('--amp', default=False, type=bool, help='|混合float16精度训练，windows上可能会出现nan，但linux正常|')
 parser.add_argument('--mosaic', default=0, type=float, help='|使用mosaic增强的概率|')
 parser.add_argument('--confidence_threshold', default=0.35, type=float, help='|指标计算置信度阈值|')

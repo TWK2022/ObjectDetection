@@ -1,6 +1,7 @@
 import os
 import torch
 import argparse
+from model.layer import deploy
 
 # -------------------------------------------------------------------------------------------------------------------- #
 # 设置
@@ -26,6 +27,7 @@ if args.float16:
 def export_onnx():
     model_dict = torch.load(args.weight, map_location='cpu')
     model = model_dict['model']
+    model = deploy(model, args.input_size)
     model.eval().half().to(args.device) if args.float16 else model.eval().float().to(args.device)
     input_shape = torch.rand(1, args.input_size, args.input_size, 3,
                              dtype=torch.float16 if args.float16 else torch.float32).to(args.device)
