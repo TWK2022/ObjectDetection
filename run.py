@@ -97,7 +97,7 @@ if args.local_rank == 0:
     if os.path.exists(args.weight):  # 优先加载已有模型args.weight继续训练
         print(f'| 加载已有模型:{args.weight} |')
     elif args.prune:
-        print(f'| 加模型并剪枝训练:{args.prune_weight} |')
+        print(f'| 加载模型+剪枝训练:{args.prune_weight} |')
     else:  # 创建自定义模型args.model
         assert os.path.exists(f'model/{args.model}.py'), f'没有此自定义模型:{args.model}'
         print(f'| 创建自定义模型:{args.model} | 型号:{args.model_type} |')
