@@ -241,14 +241,14 @@ class torch_dataset(torch.utils.data.Dataset):
                     if wh_screen[k]:  # 根据wh筛选
                         label_matrix[j, x_grid[k], y_grid[k]] = label[k]
                         judge_matrix[j, x_grid[k], y_grid[k]] = True
-                # # 将扩充的标签填入对应的标签矩阵位置
-                # for k in range(len(label)):
-                #     if wh_screen[k] and not judge_matrix[j, x_grid_add[k], y_grid[k]]:  # 需要该位置有空位
-                #         label_matrix[j, x_grid_add[k], y_grid[k]] = label[k]
-                #         judge_matrix[j, x_grid_add[k], y_grid[k]] = True
-                #     if wh_screen[k] and not judge_matrix[j, x_grid[k], y_grid_add[k]]:  # 需要该位置有空位
-                #         label_matrix[j, x_grid[k], y_grid_add[k]] = label[k]
-                #         judge_matrix[j, x_grid[k], y_grid_add[k]] = True
+                # 将扩充的标签填入对应的标签矩阵位置
+                for k in range(len(label)):
+                    if wh_screen[k] and not judge_matrix[j, x_grid_add[k], y_grid[k]]:  # 需要该位置有空位
+                        label_matrix[j, x_grid_add[k], y_grid[k]] = label[k]
+                        judge_matrix[j, x_grid_add[k], y_grid[k]] = True
+                    if wh_screen[k] and not judge_matrix[j, x_grid[k], y_grid_add[k]]:  # 需要该位置有空位
+                        label_matrix[j, x_grid[k], y_grid_add[k]] = label[k]
+                        judge_matrix[j, x_grid[k], y_grid_add[k]] = True
             # 存放每个输出层的结果
             label_matrix_list[i] = label_matrix
             judge_matrix_list[i] = judge_matrix
