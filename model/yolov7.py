@@ -51,9 +51,9 @@ class yolov7(torch.nn.Module):
             self.l24 = concat(1)
             self.l25 = elan_h(32 * dim, 16 * dim)  # 接output2
             # ---------- #
-            self.output0 = head(4 * dim, 3 * (5 + self.output_class))
-            self.output1 = head(8 * dim, 3 * (5 + self.output_class))
-            self.output2 = head(16 * dim, 3 * (5 + self.output_class))
+            self.output0 = head(4 * dim, self.output_size[0], self.output_class)
+            self.output1 = head(8 * dim, self.output_size[1], self.output_class)
+            self.output2 = head(16 * dim,  self.output_size[2], self.output_class)
         else:  # 剪枝版本
             config = args.prune_num
             self.l0 = cbs(3, config[0], 1, 1)
@@ -92,9 +92,9 @@ class yolov7(torch.nn.Module):
             self.l25 = elan_h(config[31 + 8 * n] + config[60 + 8 * n] + config[62 + 8 * n], None,
                               config[63 + 8 * n:70 + 8 * n])  # 接output2
             # ---------- #
-            self.output0 = head(config[49 + 8 * n], 3 * (5 + self.output_class))
-            self.output1 = head(config[59 + 8 * n], 3 * (5 + self.output_class))
-            self.output2 = head(config[69 + 8 * n], 3 * (5 + self.output_class))
+            self.output0 = head(config[49 + 8 * n], self.output_size[0], self.output_class)
+            self.output1 = head(config[59 + 8 * n], self.output_size[1], self.output_class)
+            self.output2 = head(config[69 + 8 * n], self.output_size[2], self.output_class)
 
     def forward(self, x):
         x = self.l0(x)
@@ -120,17 +120,14 @@ class yolov7(torch.nn.Module):
         x = self.l18([x, l6_add])
         x = self.l19(x)
         output0 = self.output0(x)
-        output0 = output0.reshape(-1, 3, self.output_size[0], self.output_size[0], 5 + self.output_class)  # 变形
         x = self.l20(x)
         x = self.l21([x, l15])
         x = self.l22(x)
         output1 = self.output1(x)
-        output1 = output1.reshape(-1, 3, self.output_size[1], self.output_size[1], 5 + self.output_class)  # 变形
         x = self.l23(x)
         x = self.l24([x, l11])
         x = self.l25(x)
         output2 = self.output2(x)
-        output2 = output2.reshape(-1, 3, self.output_size[2], self.output_size[2], 5 + self.output_class)  # 变形
         return [output0, output1, output2]
 
 

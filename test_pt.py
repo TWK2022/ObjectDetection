@@ -71,7 +71,8 @@ def draw(image, frame, cls, name):  # 输入(x_min,y_min,w,h)真实坐标
         b = (int(frame[i][0] + frame[i][2]), int(frame[i][1] + frame[i][3]))
         cv2.rectangle(image, a, b, color=(0, 255, 0), thickness=2)
         cv2.putText(image, 'class:' + str(cls[i]), a, cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-    cv2.imwrite('pred_' + name, image)
+    cv2.imwrite('save_' + name, image)
+    print(f'| {name}: save_{name} |')
 
 
 def test_pt(args):

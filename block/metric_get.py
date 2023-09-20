@@ -55,13 +55,11 @@ def nms_tp_fn_fp(pred, true, iou_threshold):  # 输入为(batch,(x_min,y_min,w,h
     pred_cls = torch.argmax(pred[:, 5:], dim=1)
     true_cls = torch.argmax(true[:, 5:], dim=1)
     tp = 0
-    fn = 0
     for i in range(len(true)):
         target = true[i]
         iou_all = iou_single(pred, target)
         judge_tp = torch.where((iou_all > iou_threshold) & (pred_cls == true_cls[i]), True, False)
-        judge_fn = torch.where((iou_all > iou_threshold) & (pred_cls != true_cls[i]), True, False)
         tp += len(pred[judge_tp])  # 最多只有一个
-        fn += len(pred[judge_fn])  # 最多只有一个
-    fp = len(pred) - tp - fn
+    fp = len(pred) - tp
+    fn = len(true) - tp
     return tp, fp, fn
