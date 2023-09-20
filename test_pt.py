@@ -81,8 +81,9 @@ def test_pt(args):
     model = model_dict['model']
     model = deploy(model, args.input_size)
     model.half().eval().to(args.device) if args.float16 else model.float().eval().to(args.device)
+    epoch = model_dict['epoch']
     m_ap = round(model_dict['standard'], 3)
-    print(f'| 模型加载成功:{args.model_path} | m_ap:{m_ap}|')
+    print(f'| 模型加载成功:{args.model_path} | epoch:{epoch} | m_ap:{m_ap}|')
     # 推理
     image_dir = sorted(os.listdir(args.image_path))
     start_time = time.time()
