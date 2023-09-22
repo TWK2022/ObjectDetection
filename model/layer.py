@@ -236,14 +236,15 @@ class split_head(torch.nn.Module):  # in_->(batch, 3, output_size, output_size, 
         self.output_size = output_size
         self.output_class = output_class
         if not config:  # 正常版本
-            self.cbs0 = cbs(in_, in_, kernel_size=1, stride=1)
-            self.cbs1 = cbs(in_, in_, kernel_size=3, stride=1)
-            self.cbs2 = cbs(in_, in_, kernel_size=3, stride=1)
-            self.cbs3 = cbs(in_, in_, kernel_size=3, stride=1)
-            self.cbs4 = cbs(in_, in_, kernel_size=3, stride=1)
-            self.Conv2d5 = torch.nn.Conv2d(in_, 12, kernel_size=1, stride=1, padding=0)
-            self.Conv2d6 = torch.nn.Conv2d(in_, 3, kernel_size=1, stride=1, padding=0)
-            self.Conv2d7 = torch.nn.Conv2d(in_, 3 * self.output_class, kernel_size=1, stride=1, padding=0)
+            out_ = 3 * (5 + self.output_class)
+            self.cbs0 = cbs(in_, out_, kernel_size=1, stride=1)
+            self.cbs1 = cbs(out_, out_, kernel_size=3, stride=1)
+            self.cbs2 = cbs(out_, out_, kernel_size=3, stride=1)
+            self.cbs3 = cbs(out_, out_, kernel_size=3, stride=1)
+            self.cbs4 = cbs(out_, out_, kernel_size=3, stride=1)
+            self.Conv2d5 = torch.nn.Conv2d(out_, 12, kernel_size=1, stride=1, padding=0)
+            self.Conv2d6 = torch.nn.Conv2d(out_, 3, kernel_size=1, stride=1, padding=0)
+            self.Conv2d7 = torch.nn.Conv2d(out_, 3 * self.output_class, kernel_size=1, stride=1, padding=0)
             self.concat8 = concat(4)
         else:  # 剪枝版本。len(config) = 8
             self.cbs0 = cbs(in_, config[0], kernel_size=1, stride=1)

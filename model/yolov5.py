@@ -46,9 +46,9 @@ class yolov5(torch.nn.Module):
         self.l22 = concat(1)
         self.l23 = c3(16 * dim, 16 * dim, n)  # 接output2
         # ---------- #
-        self.output0 = head(4 * dim, 3 * (5 + self.output_class))
-        self.output1 = head(8 * dim, 3 * (5 + self.output_class))
-        self.output2 = head(16 * dim, 3 * (5 + self.output_class))
+        self.output0 = head(4 * dim, self.output_size[0], self.output_class)
+        self.output1 = head(8 * dim, self.output_size[1], self.output_class)
+        self.output2 = head(16 * dim, self.output_size[2], self.output_class)
 
     def forward(self, x):
         x = self.l0(x)
