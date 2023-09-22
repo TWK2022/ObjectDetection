@@ -49,7 +49,7 @@ parser.add_argument('--epoch', default=300, type=int, help='|训练轮数，继�
 parser.add_argument('--batch', default=8, type=int, help='|训练批量大小|')
 parser.add_argument('--lr_start', default=0.001, type=float, help='|初始学习率，训练中采用adam算法，前3轮有预热训练|')
 parser.add_argument('--lr_end', default=0.0001, type=float, help='|最终学习率|')
-parser.add_argument('--lr_adjust_num', default=250, type=int, help='|从初始学习率到最终学习率经过的调整次数，余玄下降法|')
+parser.add_argument('--lr_adjust_num', default=200, type=int, help='|从初始学习率到最终学习率经过的调整次数，余玄下降法|')
 parser.add_argument('--lr_adjust_threshold', default=0.97, type=float, help='|本轮训练损失大于上一轮损失的比例时才调整|')
 parser.add_argument('--regularization', default='L2', type=str, help='|正则化，有L2、None|')
 parser.add_argument('--r_value', default=0.0005, type=float, help='|正则化的权重系数|')
