@@ -28,10 +28,14 @@ class concat(torch.nn.Module):
 
 
 class residual(torch.nn.Module):  # in_->in_，len->len
-    def __init__(self, in_):
+    def __init__(self, in_, config=None):
         super().__init__()
-        self.cbs0 = cbs(in_, in_, kernel_size=1, stride=1)
-        self.cbs1 = cbs(in_, in_, kernel_size=3, stride=1)
+        if not config:  # 正常版本
+            self.cbs0 = cbs(in_, in_, kernel_size=1, stride=1)
+            self.cbs1 = cbs(in_, in_, kernel_size=3, stride=1)
+        else:  # 剪枝版本。len(config) = 2
+            self.cbs0 = cbs(in_, config[0], kernel_size=1, stride=1)
+            self.cbs1 = cbs(config[0], config[1], kernel_size=3, stride=1)
 
     def forward(self, x):
         x0 = self.cbs0(x)
@@ -40,13 +44,23 @@ class residual(torch.nn.Module):  # in_->in_，len->len
 
 
 class c3(torch.nn.Module):  # in_->out_，len->len
-    def __init__(self, in_, out_, n):
+    def __init__(self, in_, out_, n, config=None):
         super().__init__()
-        self.cbs0 = cbs(in_, in_ // 2, kernel_size=1, stride=1)
-        self.sequential1 = torch.nn.Sequential(*(residual(in_ // 2) for _ in range(n)))
-        self.cbs2 = cbs(in_, in_ // 2, kernel_size=1, stride=1)
-        self.concat3 = concat(dim=1)
-        self.cbs4 = cbs(in_, out_, kernel_size=1, stride=1)
+        if not config:  # 正常版本
+            self.cbs0 = cbs(in_, in_ // 2, kernel_size=1, stride=1)
+            self.sequential1 = torch.nn.Sequential(*(residual(in_ // 2) for _ in range(n)))
+            self.cbs2 = cbs(in_, in_ // 2, kernel_size=1, stride=1)
+            self.concat3 = concat(dim=1)
+            self.cbs4 = cbs(in_, out_, kernel_size=1, stride=1)
+        else:  # 剪枝版本。len(config) = 3 + 2 * n
+            self.cbs0 = cbs(in_, config[0], kernel_size=1, stride=1)
+            self.sequential1 = torch.nn.Sequential(
+                *(residual(config[0 + 2 * _] if _ == 0 else config[1 + 2 * _] + config[2 + 2 * _],
+                           config[1 + 2 * _:3 + 2 * _]) for _ in range(n)))
+            self.cbs2 = cbs(config[0], config[1 + 2 * n], kernel_size=1, stride=1)
+            self.concat3 = concat(dim=1)
+            self.cbs4 = cbs(config[0] + config[2 * n - 1] + config[2 * n] + config[1 + 2 * n], config[2 + 2 * n],
+                            kernel_size=1, stride=1)
 
     def forward(self, x):
         x0 = self.cbs0(x)
@@ -152,14 +166,22 @@ class mp(torch.nn.Module):  # in_->out_，len->len//2
 
 
 class sppf(torch.nn.Module):  # in_->out_，len->len
-    def __init__(self, in_, out_):
+    def __init__(self, in_, out_, config=None):
         super().__init__()
-        self.cbs0 = cbs(in_, in_ // 2, kernel_size=1, stride=1)
-        self.MaxPool2d1 = torch.nn.MaxPool2d(kernel_size=5, stride=1, padding=2, dilation=1)
-        self.MaxPool2d2 = torch.nn.MaxPool2d(kernel_size=9, stride=1, padding=4, dilation=1)
-        self.MaxPool2d3 = torch.nn.MaxPool2d(kernel_size=13, stride=1, padding=6, dilation=1)
-        self.concat4 = concat(dim=1)
-        self.cbs5 = cbs(2 * in_, out_, kernel_size=1, stride=1)
+        if not config:  # 正常版本
+            self.cbs0 = cbs(in_, in_ // 2, kernel_size=1, stride=1)
+            self.MaxPool2d1 = torch.nn.MaxPool2d(kernel_size=5, stride=1, padding=2, dilation=1)
+            self.MaxPool2d2 = torch.nn.MaxPool2d(kernel_size=9, stride=1, padding=4, dilation=1)
+            self.MaxPool2d3 = torch.nn.MaxPool2d(kernel_size=13, stride=1, padding=6, dilation=1)
+            self.concat4 = concat(dim=1)
+            self.cbs5 = cbs(2 * in_, out_, kernel_size=1, stride=1)
+        else:  # 剪枝版本。len(config) = 2
+            self.cbs0 = cbs(in_, config[0], kernel_size=1, stride=1)
+            self.MaxPool2d1 = torch.nn.MaxPool2d(kernel_size=5, stride=1, padding=2, dilation=1)
+            self.MaxPool2d2 = torch.nn.MaxPool2d(kernel_size=9, stride=1, padding=4, dilation=1)
+            self.MaxPool2d3 = torch.nn.MaxPool2d(kernel_size=13, stride=1, padding=6, dilation=1)
+            self.concat4 = concat(dim=1)
+            self.cbs5 = cbs(4 * config[0], config[1], kernel_size=1, stride=1)
 
     def forward(self, x):
         x = self.cbs0(x)
