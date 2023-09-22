@@ -229,41 +229,43 @@ class head(torch.nn.Module):  # in_->(batch, 3, output_size, output_size, 5+outp
         return x
 
 
+# 参考yolox
 class split_head(torch.nn.Module):  # in_->(batch, 3, output_size, output_size, 5+output_class))，len->len
     def __init__(self, in_, output_size, output_class, config=None):
         super().__init__()
         self.output_size = output_size
         self.output_class = output_class
         if not config:  # 正常版本
-            out_ = 3 * (5 + self.output_class)
-            self.cbs0 = cbs(in_, out_, kernel_size=1, stride=1)
-            self.cbs1 = cbs(out_, out_, kernel_size=3, stride=1)
-            self.cbs2 = cbs(out_, out_, kernel_size=3, stride=1)
-            self.cbs3 = cbs(out_, out_, kernel_size=3, stride=1)
-            self.Conv2d4 = torch.nn.Conv2d(out_, 12, kernel_size=1, stride=1, padding=0)
-            self.Conv2d5 = torch.nn.Conv2d(out_, 3, kernel_size=1, stride=1, padding=0)
-            self.Conv2d6 = torch.nn.Conv2d(out_, out_ - 15, kernel_size=1, stride=1, padding=0)
-            self.concat7 = concat(4)
-        else:  # 剪枝版本。len(config) = 4
-            out_ = 3 * (5 + self.output_class)
+            self.cbs0 = cbs(in_, in_, kernel_size=1, stride=1)
+            self.cbs1 = cbs(in_, in_, kernel_size=3, stride=1)
+            self.cbs2 = cbs(in_, in_, kernel_size=3, stride=1)
+            self.cbs3 = cbs(in_, in_, kernel_size=3, stride=1)
+            self.cbs4 = cbs(in_, in_, kernel_size=3, stride=1)
+            self.Conv2d5 = torch.nn.Conv2d(in_, 12, kernel_size=1, stride=1, padding=0)
+            self.Conv2d6 = torch.nn.Conv2d(in_, 3, kernel_size=1, stride=1, padding=0)
+            self.Conv2d7 = torch.nn.Conv2d(in_, 3 * self.output_class, kernel_size=1, stride=1, padding=0)
+            self.concat8 = concat(4)
+        else:  # 剪枝版本。len(config) = 8
             self.cbs0 = cbs(in_, config[0], kernel_size=1, stride=1)
-            self.cbs1 = cbs(config[0], config[1], kernel_size=3, stride=1)
-            self.cbs2 = cbs(config[0], config[2], kernel_size=3, stride=1)
-            self.cbs3 = cbs(config[0], config[3], kernel_size=3, stride=1)
-            self.Conv2d4 = torch.nn.Conv2d(config[1], 12, kernel_size=1, stride=1, padding=0)
-            self.Conv2d5 = torch.nn.Conv2d(config[2], 3, kernel_size=1, stride=1, padding=0)
-            self.Conv2d6 = torch.nn.Conv2d(config[3], out_ - 15, kernel_size=1, stride=1, padding=0)
-            self.concat7 = concat(4)
+            self.cbs1 = cbs(config[0], config[1], kernel_size=1, stride=1)
+            self.cbs2 = cbs(config[1], config[2], kernel_size=1, stride=1)
+            self.cbs3 = cbs(config[0], config[3], kernel_size=1, stride=1)
+            self.cbs4 = cbs(config[3], config[4], kernel_size=1, stride=1)
+            self.Conv2d5 = torch.nn.Conv2d(config[5], 12, kernel_size=1, stride=1, padding=0)
+            self.Conv2d6 = torch.nn.Conv2d(config[6], 3, kernel_size=1, stride=1, padding=0)
+            self.Conv2d7 = torch.nn.Conv2d(config[7], 3 * self.output_class, kernel_size=1, stride=1, padding=0)
+            self.concat8 = concat(4)
 
     def forward(self, x):
         x = self.cbs0(x)
         x0 = self.cbs1(x)
-        x1 = self.cbs2(x)
-        x2 = self.cbs3(x)
-        x0 = self.Conv2d4(x0).reshape(-1, 3, self.output_size, self.output_size, 4)  # 变形
-        x1 = self.Conv2d5(x1).reshape(-1, 3, self.output_size, self.output_size, 1)  # 变形
-        x2 = self.Conv2d6(x2).reshape(-1, 3, self.output_size, self.output_size, self.output_class)  # 变形
-        x = self.concat7([x0, x1, x2])
+        x0 = self.cbs2(x0)
+        x1 = self.cbs3(x)
+        x1 = self.cbs4(x1)
+        x2 = self.Conv2d5(x0).reshape(-1, 3, self.output_size, self.output_size, 4)  # 变形
+        x3 = self.Conv2d6(x0).reshape(-1, 3, self.output_size, self.output_size, 1)  # 变形
+        x4 = self.Conv2d7(x1).reshape(-1, 3, self.output_size, self.output_size, self.output_class)  # 变形
+        x = self.concat8([x2, x3, x4])
         return x
 
 
