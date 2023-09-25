@@ -10,6 +10,7 @@ class loss_prepare(object):
     def __init__(self, args):
         self.loss_frame = self._ciou  # 边框损失函数
         self.loss_confidence = torch.nn.BCEWithLogitsLoss()  # 置信度损失函数
+        self.loss_confidence_add = torch.nn.BCEWithLogitsLoss()  # 置信度正样本损失函数
         self.loss_class = torch.nn.BCEWithLogitsLoss()  # 分类损失函数
         self.loss_weight = args.loss_weight  # 每个输出层的权重
         self.stride = (8, 16, 32)
@@ -33,9 +34,13 @@ class loss_prepare(object):
                 pred_judge = pred[i][judge[i]]  # 预测的值
                 true_judge = true[i][judge[i]]  # 真实的标签
                 pred_judge, true_judge = self._center_to_min(pred_judge, true_judge)  # Cx,Cy转为x_min,y_min
+                # 计算损失
                 frame_add = self.loss_frame(pred_judge[:, 0:4], true_judge[:, 0:4])  # 边框损失(只计算需要的)
-                confidence_add = self.loss_confidence(pred[i][..., 4], true[i][..., 4])  # 置信度损失(计算所有的)
+                confidence_a = 0.55 * self.loss_confidence(pred[i][..., 4], true[i][..., 4])  # 置信度损失(计算所有的)
+                confidence_b = 0.45 * self.loss_confidence_add(pred_judge[i][..., 4], true_judge[i][..., 4])  # 正样本
+                confidence_add = confidence_a + confidence_b
                 class_add = self.loss_class(pred_judge[:, 5:], true_judge[:, 5:])  # 分类损失(只计算需要的)
+                # 总损失
                 frame_loss += self.loss_weight[i][0] * self.loss_weight[i][1] * (1 - torch.mean(frame_add))  # 总边框损失
                 confidence_loss += self.loss_weight[i][0] * self.loss_weight[i][2] * confidence_add  # 总置信度损失
                 class_loss += self.loss_weight[i][0] * self.loss_weight[i][3] * class_add  # 总分类损失
