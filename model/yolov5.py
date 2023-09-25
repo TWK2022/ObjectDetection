@@ -89,6 +89,7 @@ if __name__ == '__main__':
     from layer import cbs, c3, sppf, concat, head
 
     parser = argparse.ArgumentParser(description='')
+    parser.add_argument('--prune', default=False, type=bool)
     parser.add_argument('--model_type', default='n', type=str)
     parser.add_argument('--input_size', default=640, type=int)
     parser.add_argument('--output_class', default=1, type=int)
@@ -96,6 +97,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     model = yolov5(args).to(args.device)
     print(model)
-    tensor = torch.rand(2, args.input_size, args.input_size, 3, dtype=torch.float32).to(args.device)
+    tensor = torch.rand(2, 3, args.input_size, args.input_size, dtype=torch.float32).to(args.device)
     pred = model(tensor)
     print(pred[0].shape, pred[1].shape, pred[2].shape)
