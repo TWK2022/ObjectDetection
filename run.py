@@ -58,7 +58,7 @@ parser.add_argument('--latch', default=True, type=bool, help='|模型和数据�
 parser.add_argument('--num_worker', default=0, type=int, help='|CPU在处理数据时使用的进程数，0表示只有一个主进程，一般为0、2、4、8|')
 parser.add_argument('--ema', default=True, type=bool, help='|使用平均指数移动(EMA)调整参数|')
 parser.add_argument('--amp', default=False, type=bool, help='|混合float16精度训练，windows上可能会出现nan，但linux正常|')
-parser.add_argument('--mosaic', default=1, type=float, help='|使用mosaic增强的概率|')
+parser.add_argument('--mosaic', default=0.5, type=float, help='|使用mosaic增强的概率|')
 parser.add_argument('--mosaic_flip', default=0.5, type=float, help='|mosaic增强时的垂直翻转概率|')
 parser.add_argument('--mosaic_screen', default=10, type=int, help='|mosaic增强后留下的框w,h不能小于mosaic_screen，根据物体大小调整|')
 parser.add_argument('--confidence_threshold', default=0.35, type=float, help='|指标计算置信度阈值|')
