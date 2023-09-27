@@ -27,10 +27,10 @@ class loss_prepare(object):
         frame_loss = 0  # 总边框损失
         confidence_loss = 0  # 总置信度损失
         class_loss = 0  # 总分类损失
-        pred_decode = self._frame_decode(pred)  # 将边框解码为(Cx,Cy,w,h)真实坐标
+        pred = self._frame_decode(pred)  # 将边框解码为(Cx,Cy,w,h)真实坐标
         for i in range(len(pred)):  # 对每个输出层分别进行操作
             if True in judge[i]:  # 有需要预测的位置
-                pred_judge = pred_decode[i][judge[i]]  # 预测的值
+                pred_judge = pred[i][judge[i]]  # 预测的值
                 true_judge = true[i][judge[i]]  # 真实的标签
                 pred_judge, true_judge = self._center_to_min(pred_judge, true_judge)  # Cx,Cy转为x_min,y_min
                 # 计算损失
