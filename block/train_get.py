@@ -181,6 +181,7 @@ class torch_dataset(torch.utils.data.Dataset):
         self.data = data
         self.mosaic = args.mosaic
         self.mosaic_flip = args.mosaic_flip
+        self.mosaic_hsv = args.mosaic_hsv
         self.mosaic_screen = args.mosaic_screen
 
     def __len__(self):
@@ -191,7 +192,7 @@ class torch_dataset(torch.utils.data.Dataset):
         if self.tag == 'train' and torch.rand(1) < self.mosaic:
             index_mix = torch.randperm(len(self.data))[0:4]
             index_mix[0] = index
-            image, frame, cls_all = self._mosaic(index_mix, self.mosaic_screen)  # 马赛克增强、缩放和填充图片，相对坐标变为真实坐标(Cx,Cy,w,h)
+            image, frame, cls_all = self._mosaic(index_mix)  # 马赛克增强、缩放和填充图片，相对坐标变为真实坐标(Cx,Cy,w,h)
         else:
             image = cv2.imdecode(np.fromfile(self.data[index][0], dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片(可以读取中文)
             label = self.data[index][1].copy()  # 读取原始标签([:,类别号+Cx,Cy,w,h]，边框为相对边长的比例值)
@@ -257,7 +258,7 @@ class torch_dataset(torch.utils.data.Dataset):
             judge_matrix_list[i] = judge_matrix
         return image, label_matrix_list, judge_matrix_list, label  # 真实坐标(Cx,Cy,w,h)
 
-    def _mosaic(self, index_mix, screen=10):  # 马赛克增强，合并后w,h不能小于screen
+    def _mosaic(self, index_mix):  # 马赛克增强，合并后w,h不能小于screen
         x_center = int((torch.rand(1) * 0.4 + 0.3) * self.input_size)  # 0.3-0.7。四张图片合并的中心点
         y_center = int((torch.rand(1) * 0.4 + 0.3) * self.input_size)  # 0.3-0.7。四张图片合并的中心点
         image_merge = np.full((self.input_size, self.input_size, 3), 127)  # 合并后的图片
@@ -266,6 +267,14 @@ class torch_dataset(torch.utils.data.Dataset):
         for item, index in enumerate(index_mix):
             image = cv2.imdecode(np.fromfile(self.data[index][0], dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片(可以读取中文)
             label = self.data[index][1].copy()  # 相对坐标(类别号,Cx,Cy,w,h)
+            # hsv通道变换
+            if torch.rand(1) < self.mosaic_hsv:
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV).astype(np.float32)
+                image[:, :, 0] += np.random.rand(1) * 60 - 30  # -30到30
+                image[:, :, 1] += np.random.rand(1) * 60 - 30  # -30到30
+                image[:, :, 2] += np.random.rand(1) * 60 - 30  # -30到30
+                image = np.clip(image, 0, 255).astype(np.uint8)
+                image = cv2.cvtColor(image, cv2.COLOR_HSV2BGR)
             # 垂直翻转
             if torch.rand(1) < self.mosaic_flip:
                 image = cv2.flip(image, 1)  # 垂直翻转图片
@@ -317,9 +326,11 @@ class torch_dataset(torch.utils.data.Dataset):
         frame_all = np.clip(frame_all, 0, self.input_size - 1)  # 压缩坐标到图片内
         frame_all[:, 2:4] = frame_all[:, 2:4] - frame_all[:, 0:2]
         frame_all[:, 0:2] = frame_all[:, 0:2] + frame_all[:, 2:4] / 2  # 真实坐标(Cx,Cy,w,h)
-        judge_list = np.where((frame_all[:, 2] > screen) & (frame_all[:, 3] > screen), True, False)  # w,h不能小于screen
+        judge_list = np.where((frame_all[:, 2] > self.mosaic_screen) & (frame_all[:, 3] > self.mosaic_screen),
+                              True, False)  # w,h不能小于screen
         frame_all = frame_all[judge_list]
         cls_all = cls_all[judge_list]
+        self._draw(image_merge, frame_all)
         return image_merge, frame_all, cls_all
 
     def _resize(self, image, frame):  # 将图片四周填充变为正方形，frame输入输出都为[[Cx,Cy,w,h]...](相对原图片的比例值)
