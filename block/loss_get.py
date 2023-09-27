@@ -27,8 +27,7 @@ class loss_prepare(object):
         frame_loss = 0  # 总边框损失
         confidence_loss = 0  # 总置信度损失
         class_loss = 0  # 总分类损失
-        with torch.no_grad():
-            pred = self._frame_decode(pred)  # 将边框解码为(Cx,Cy,w,h)真实坐标。置信度和分类归一化在BCEWithLogitsLoss中完成
+        pred = self._frame_decode(pred)  # 将边框解码为(Cx,Cy,w,h)真实坐标。置信度和分类归一化在BCEWithLogitsLoss中完成
         for i in range(len(pred)):  # 对每个输出层分别进行操作
             if True in judge[i]:  # 有需要预测的位置
                 pred_judge = pred[i][judge[i]]  # 预测的值
