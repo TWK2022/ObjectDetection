@@ -49,8 +49,6 @@ class loss_prepare(object):
         return frame_loss + confidence_loss + class_loss, frame_loss, confidence_loss, class_loss
 
     def _frame_decode(self, output):
-        # # 复制
-        # output = [_.clone() for _ in pred]
         # 遍历每一个大层
         for i in range(len(output)):
             output[i][..., 0:4] = output[i][..., 0:4].sigmoid()  # 归一化
