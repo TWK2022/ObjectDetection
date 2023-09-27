@@ -28,13 +28,13 @@ def train_get(args, data_dict, model_dict, loss):
     train_shuffle = False if args.distributed else True  # 分布式设置sampler后shuffle要为False
     train_dataloader = torch.utils.data.DataLoader(train_dataset, batch_size=args.batch, shuffle=train_shuffle,
                                                    drop_last=True, pin_memory=args.latch, num_workers=args.num_worker,
-                                                   sampler=train_sampler, collate_fn=train_dataset._collate_fn)
+                                                   sampler=train_sampler, collate_fn=train_dataset.collate_fn)
     val_dataset = torch_dataset(args, 'val', data_dict['val'])
     val_sampler = None  # 分布式时数据合在主GPU上进行验证
     val_batch = args.batch // args.gpu_number  # 分布式验证时batch要减少为一个GPU的量
     val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=val_batch, shuffle=False, drop_last=False,
                                                  pin_memory=args.latch, num_workers=args.num_worker,
-                                                 sampler=val_sampler, collate_fn=val_dataset._collate_fn)
+                                                 sampler=val_sampler, collate_fn=val_dataset.collate_fn)
     # 分布式初始化
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank],
                                                       output_device=args.local_rank) if args.distributed else model
@@ -180,6 +180,8 @@ class torch_dataset(torch.utils.data.Dataset):
         self.tag = tag  # 用于区分是训练集还是验证集
         self.data = data
         self.mosaic = args.mosaic
+        self.mosaic_flip = args.mosaic_flip
+        self.mosaic_screen = args.mosaic_screen
 
     def __len__(self):
         return len(self.data)
@@ -189,24 +191,24 @@ class torch_dataset(torch.utils.data.Dataset):
         if self.tag == 'train' and torch.rand(1) < self.mosaic:
             index_mix = torch.randperm(len(self.data))[0:4]
             index_mix[0] = index
-            image, frame, label = self._mosaic(index_mix)  # 马赛克增强，相对坐标(Cx,Cy,w,h)变为真实坐标
+            image, frame, cls_all = self._mosaic(index_mix, self.mosaic_screen)  # 马赛克增强、缩放和填充图片，相对坐标变为真实坐标(Cx,Cy,w,h)
         else:
-            image = cv2.imread(self.data[index][0])  # 读取图片
+            image = cv2.imdecode(np.fromfile(self.data[index][0], dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片(可以读取中文)
             label = self.data[index][1].copy()  # 读取原始标签([:,类别号+Cx,Cy,w,h]，边框为相对边长的比例值)
-            image, frame = self._resize(image.astype(np.uint8), label[:, 1:],
-                                        self.input_size)  # 缩放和填充图片，相对坐标(Cx,Cy,w,h)变为真实坐标
+            image, frame = self._resize(image.astype(np.uint8), label[:, 1:])  # 缩放和填充图片，相对坐标(Cx,Cy,w,h)变为真实坐标
+            cls_all = label[:, 0]  # 类别号
         image = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_BGR2RGB)  # 转为RGB通道
         image = (torch.tensor(image, dtype=torch.float32) / 255).permute(2, 0, 1)
         # 边框:转换为张量
         frame = torch.tensor(frame, dtype=torch.float32)
         # 置信度:为1
-        confidence = torch.ones((len(label), 1), dtype=torch.float32)
+        confidence = torch.ones((len(frame), 1), dtype=torch.float32)
         # 类别:类别独热编码
-        cls = torch.full((len(label), self.output_class), self.label_smooth[0], dtype=torch.float32)
-        for i in range(len(label)):
-            cls[i][int(label[i, 0])] = self.label_smooth[1]
+        cls = torch.full((len(cls_all), self.output_class), self.label_smooth[0], dtype=torch.float32)
+        for i in range(len(cls_all)):
+            cls[i][int(cls_all[i])] = self.label_smooth[1]
         # 合并为标签
-        label = torch.concat([frame, confidence, cls], dim=1)  # (Cx,Cy,w,h)真实坐标
+        label = torch.concat([frame, confidence, cls], dim=1).type(torch.float32)  # (Cx,Cy,w,h)真实坐标
         # 标签矩阵处理
         label_matrix_list = [0 for _ in range(len(self.output_num))]  # 存放每个输出层的标签矩阵，(Cx,Cy,w,h)真实坐标
         judge_matrix_list = [0 for _ in range(len(self.output_num))]  # 存放每个输出层的判断矩阵
@@ -215,56 +217,123 @@ class torch_dataset(torch.utils.data.Dataset):
                                        5 + self.output_class, dtype=torch.float32)  # 标签矩阵
             judge_matrix = torch.zeros(self.output_num[i], self.output_size[i], self.output_size[i],
                                        dtype=torch.bool)  # 判断矩阵，False代表没有标签
-            frame = label[:, 0:4].clone()
-            frame[:, 0:2] = frame[:, 0:2] / self.stride[i]
-            frame[:, 2:4] = frame[:, 2:4] / self.wh_multiple
-            # 标签对应输出网格的坐标
-            Cx = frame[:, 0]
-            x_grid = Cx.type(torch.int8)
-            x_move = Cx - x_grid
-            x_grid_add = x_grid + 2 * torch.round(x_move).type(torch.int8) - 1  # 每个标签可以由相邻网格预测
-            x_grid_add = torch.clamp(x_grid_add, 0, self.output_size[i] - 1)  # 网格不能超出范围(与x_grid重复的网格之后不会加入)
-            Cy = frame[:, 1]
-            y_grid = Cy.type(torch.int8)
-            y_move = Cy - y_grid
-            y_grid_add = y_grid + 2 * torch.round(y_move).type(torch.int8) - 1  # 每个标签可以由相邻网格预测
-            y_grid_add = torch.clamp(y_grid_add, 0, self.output_size[i] - 1)  # 网格不能超出范围(与y_grid重复的网格之后不会加入)
-            # 遍历每个输出层的小层
-            for j in range(self.output_num[i]):
-                # 根据wh制定筛选条件
-                frame_change = frame.clone()
-                w = frame_change[:, 2] / self.anchor[i][j][0]  # 该值要在0-1该层才能预测(但0-0.0625太小可以舍弃)
-                h = frame_change[:, 3] / self.anchor[i][j][1]  # 该值要在0-1该层才能预测(但0-0.0625太小可以舍弃)
-                wh_screen = torch.where((0.0625 < w) & (w < 1) & (0.0625 < h) & (h < 1), True, False)  # 筛选可以预测的标签
-                # 将标签填入对应的标签矩阵位置
-                for k in range(len(label)):
-                    if wh_screen[k]:  # 根据wh筛选
-                        label_matrix[j, x_grid[k], y_grid[k]] = label[k]
-                        judge_matrix[j, x_grid[k], y_grid[k]] = True
-                # 将扩充的标签填入对应的标签矩阵位置
-                for k in range(len(label)):
-                    if wh_screen[k] and not judge_matrix[j, x_grid_add[k], y_grid[k]]:  # 需要该位置有空位
-                        label_matrix[j, x_grid_add[k], y_grid[k]] = label[k]
-                        judge_matrix[j, x_grid_add[k], y_grid[k]] = True
-                    if wh_screen[k] and not judge_matrix[j, x_grid[k], y_grid_add[k]]:  # 需要该位置有空位
-                        label_matrix[j, x_grid[k], y_grid_add[k]] = label[k]
-                        judge_matrix[j, x_grid[k], y_grid_add[k]] = True
+            if len(label) > 0:  # 存在标签
+                frame = label[:, 0:4].clone()
+                frame[:, 0:2] = frame[:, 0:2] / self.stride[i]
+                frame[:, 2:4] = frame[:, 2:4] / self.wh_multiple
+                # 标签对应输出网格的坐标
+                Cx = frame[:, 0]
+                x_grid = Cx.type(torch.int8)
+                x_move = Cx - x_grid
+                x_grid_add = x_grid + 2 * torch.round(x_move).type(torch.int8) - 1  # 每个标签可以由相邻网格预测
+                x_grid_add = torch.clamp(x_grid_add, 0, self.output_size[i] - 1)  # 网格不能超出范围(与x_grid重复的网格之后不会加入)
+                Cy = frame[:, 1]
+                y_grid = Cy.type(torch.int8)
+                y_move = Cy - y_grid
+                y_grid_add = y_grid + 2 * torch.round(y_move).type(torch.int8) - 1  # 每个标签可以由相邻网格预测
+                y_grid_add = torch.clamp(y_grid_add, 0, self.output_size[i] - 1)  # 网格不能超出范围(与y_grid重复的网格之后不会加入)
+                # 遍历每个输出层的小层
+                for j in range(self.output_num[i]):
+                    # 根据wh制定筛选条件
+                    frame_change = frame.clone()
+                    w = frame_change[:, 2] / self.anchor[i][j][0]  # 该值要在0-1该层才能预测(但0-0.0625太小可以舍弃)
+                    h = frame_change[:, 3] / self.anchor[i][j][1]  # 该值要在0-1该层才能预测(但0-0.0625太小可以舍弃)
+                    wh_screen = torch.where((0.0625 < w) & (w < 1) & (0.0625 < h) & (h < 1), True, False)  # 筛选可以预测的标签
+                    # 将标签填入对应的标签矩阵位置
+                    for k in range(len(label)):
+                        if wh_screen[k]:  # 根据wh筛选
+                            label_matrix[j, x_grid[k], y_grid[k]] = label[k]
+                            judge_matrix[j, x_grid[k], y_grid[k]] = True
+                    # 将扩充的标签填入对应的标签矩阵位置
+                    for k in range(len(label)):
+                        if wh_screen[k] and not judge_matrix[j, x_grid_add[k], y_grid[k]]:  # 需要该位置有空位
+                            label_matrix[j, x_grid_add[k], y_grid[k]] = label[k]
+                            judge_matrix[j, x_grid_add[k], y_grid[k]] = True
+                        if wh_screen[k] and not judge_matrix[j, x_grid[k], y_grid_add[k]]:  # 需要该位置有空位
+                            label_matrix[j, x_grid[k], y_grid_add[k]] = label[k]
+                            judge_matrix[j, x_grid[k], y_grid_add[k]] = True
             # 存放每个输出层的结果
             label_matrix_list[i] = label_matrix
             judge_matrix_list[i] = judge_matrix
-        return image, label_matrix_list, judge_matrix_list, label
+        return image, label_matrix_list, judge_matrix_list, label  # 真实坐标(Cx,Cy,w,h)
 
-    def _resize(self, image, frame, input_size):  # 将图片四周填充变为正方形，frame输入输出都为[[Cx,Cy,w,h]...](相对原图片的比例值)
+    def _mosaic(self, index_mix, screen=10):  # 马赛克增强，合并后w,h不能小于screen
+        x_center = int((torch.rand(1) * 0.4 + 0.3) * self.input_size)  # 0.3-0.7。四张图片合并的中心点
+        y_center = int((torch.rand(1) * 0.4 + 0.3) * self.input_size)  # 0.3-0.7。四张图片合并的中心点
+        image_merge = np.full((self.input_size, self.input_size, 3), 127)  # 合并后的图片
+        frame_all = []  # 记录边框真实坐标(Cx,Cy,w,h)
+        cls_all = []  # 记录类别号
+        for item, index in enumerate(index_mix):
+            image = cv2.imdecode(np.fromfile(self.data[index][0], dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片(可以读取中文)
+            label = self.data[index][1].copy()  # 相对坐标(类别号,Cx,Cy,w,h)
+            # 垂直翻转
+            if torch.rand(1) < self.mosaic_flip:
+                image = cv2.flip(image, 1)  # 垂直翻转图片
+                label[:, 1] = 1 - label[:, 1]  # 坐标变换:Cx=w-Cx
+            # 根据input_size缩放图片
+            h, w, _ = image.shape
+            scale = self.input_size / w
+            w = w * scale
+            h = h * scale
+            # 再随机缩放图片
+            scale_w = torch.rand(1) + 0.5  # 0.5-1.5
+            scale_h = 1 + torch.rand(1) * 0.5 if scale_w > 1 else 1 - torch.rand(1) * 0.5  # h与w同时放大和缩小
+            w = int(w * scale_w)
+            h = int(h * scale_h)
+            image = cv2.resize(image, (w, h))
+            # 合并图片，坐标变为合并后的真实坐标(Cx,Cy,w,h)
+            if item == 0:  # 左上
+                x_add, y_add = min(x_center, w), min(y_center, h)
+                image_merge[y_center - y_add:y_center, x_center - x_add:x_center] = image[h - y_add:h, w - x_add:w]
+                label[:, 1] = label[:, 1] * w + x_center - w  # Cx
+                label[:, 2] = label[:, 2] * h + y_center - h  # Cy
+                label[:, 3:5] = label[:, 3:5] * (w, h)  # w,h
+            elif item == 1:  # 右上
+                x_add, y_add = min(self.input_size - x_center, w), min(y_center, h)
+                image_merge[y_center - y_add:y_center, x_center:x_center + x_add] = image[h - y_add:h, 0:x_add]
+                label[:, 1] = label[:, 1] * w + x_center  # Cx
+                label[:, 2] = label[:, 2] * h + y_center - h  # Cy
+                label[:, 3:5] = label[:, 3:5] * (w, h)  # w,h
+            elif item == 2:  # 右下
+                x_add, y_add = min(self.input_size - x_center, w), min(self.input_size - y_center, h)
+                image_merge[y_center:y_center + y_add, x_center:x_center + x_add] = image[0:y_add, 0:x_add]
+                label[:, 1] = label[:, 1] * w + x_center  # Cx
+                label[:, 2] = label[:, 2] * h + y_center  # Cy
+                label[:, 3:5] = label[:, 3:5] * (w, h)  # w,h
+            else:  # 左下
+                x_add, y_add = min(x_center, w), min(self.input_size - y_center, h)
+                image_merge[y_center:y_center + y_add, x_center - x_add:x_center] = image[0:y_add, w - x_add:w]
+                label[:, 1] = label[:, 1] * w + x_center - w  # Cx
+                label[:, 2] = label[:, 2] * h + y_center  # Cy
+                label[:, 3:5] = label[:, 3:5] * (w, h)  # w,h
+            frame_all.append(label[:, 1:5])
+            cls_all.append(label[:, 0])
+        # 合并标签
+        frame_all = np.concatenate(frame_all, axis=0)
+        cls_all = np.concatenate(cls_all, axis=0)
+        # 筛选掉不在图片内的标签
+        frame_all[:, 0:2] = frame_all[:, 0:2] - frame_all[:, 2:4] / 2
+        frame_all[:, 2:4] = frame_all[:, 0:2] + frame_all[:, 2:4]  # 真实坐标(x_min,y_min,x_max,y_max)
+        frame_all = np.clip(frame_all, 0, self.input_size - 1)  # 压缩坐标到图片内
+        frame_all[:, 2:4] = frame_all[:, 2:4] - frame_all[:, 0:2]
+        frame_all[:, 0:2] = frame_all[:, 0:2] + frame_all[:, 2:4] / 2  # 真实坐标(Cx,Cy,w,h)
+        judge_list = np.where((frame_all[:, 2] > screen) & (frame_all[:, 3] > screen), True, False)  # w,h不能小于screen
+        frame_all = frame_all[judge_list]
+        cls_all = cls_all[judge_list]
+        self._draw(image_merge, frame_all)
+        return image_merge, frame_all, cls_all
+
+    def _resize(self, image, frame):  # 将图片四周填充变为正方形，frame输入输出都为[[Cx,Cy,w,h]...](相对原图片的比例值)
         shape = image.shape
         w0 = shape[1]
         h0 = shape[0]
-        if w0 == h0 == input_size:  # 不需要变形
-            frame *= input_size
+        if w0 == h0 == self.input_size:  # 不需要变形
+            frame *= self.input_size
             return image, frame
         else:
-            image_resize = np.full((input_size, input_size, 3), 127)
+            image_resize = np.full((self.input_size, self.input_size, 3), 127)
             if w0 >= h0:  # 宽大于高
-                w = input_size
+                w = self.input_size
                 h = int(w / w0 * h0)
                 image = cv2.resize(image, (w, h))
                 add_y = (w - h) // 2
@@ -275,7 +344,7 @@ class torch_dataset(torch.utils.data.Dataset):
                 frame[:, 3] = np.around(frame[:, 3] * h)
                 return image_resize, frame
             else:  # 宽小于高
-                h = input_size
+                h = self.input_size
                 w = int(h / h0 * w0)
                 image = cv2.resize(image, (w, h))
                 add_x = (h - w) // 2
@@ -286,32 +355,15 @@ class torch_dataset(torch.utils.data.Dataset):
                 frame[:, 3] = np.around(frame[:, 3] * h)
                 return image_resize, frame
 
-    def _mosaic(self, index_mix):
-        image0 = cv2.imread(self.data[index_mix[0]][0])
-        image1 = cv2.imread(self.data[index_mix[1]][0])
-        image2 = cv2.imread(self.data[index_mix[2]][0])
-        image3 = cv2.imread(self.data[index_mix[3]][0])
-        label0 = self.data[index_mix[0]][1].copy()
-        label1 = self.data[index_mix[1]][1].copy()
-        label2 = self.data[index_mix[2]][1].copy()
-        label3 = self.data[index_mix[3]][1].copy()
-        image_resize = np.full((self.input_size, self.input_size, 3), 127)
-        image0, frame0 = self._resize(image0, label0[:, 1:], self.input_size // 2)
-        image1, frame1 = self._resize(image1, label1[:, 1:], self.input_size // 2)
-        image2, frame2 = self._resize(image2, label2[:, 1:], self.input_size // 2)
-        image3, frame3 = self._resize(image3, label3[:, 1:], self.input_size // 2)
-        image_resize[0:self.input_size // 2, 0:self.input_size // 2] = image0
-        image_resize[self.input_size // 2:self.input_size, 0:self.input_size // 2] = image1
-        image_resize[0:self.input_size // 2, self.input_size // 2:self.input_size] = image2
-        image_resize[self.input_size // 2:self.input_size, self.input_size // 2:self.input_size] = image3
-        frame1[:, 1] += self.input_size // 2
-        frame2[:, 0] += self.input_size // 2
-        frame3[:, 0:2] += self.input_size // 2
-        frame = np.concatenate([frame0, frame1, frame2, frame3], axis=0)
-        label = np.concatenate([label0, label1, label2, label3], axis=0)
-        return image_resize, frame, label
+    def _draw(self, image, frame_all):  # 测试时画图使用，真实坐标(Cx,Cy,w,h)
+        frame_all[:, 0:2] = frame_all[:, 0:2] - frame_all[:, 2:4] / 2
+        frame_all[:, 2:4] = frame_all[:, 0:2] + frame_all[:, 2:4]  # 真实坐标(x_min,y_min,x_max,y_max)
+        for frame in frame_all:
+            x1, y1, x2, y2 = frame
+            cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), color=(0, 255, 0), thickness=2)
+        cv2.imwrite('save_check.jpg', image)
 
-    def _collate_fn(self, getitem_batch):  # 自定义__getitem__合并方式
+    def collate_fn(self, getitem_batch):  # 自定义__getitem__合并方式
         image_list = []
         label_matrix_list = [[] for _ in range(len(getitem_batch[0][1]))]
         judge_matrix_list = [[] for _ in range(len(getitem_batch[0][2]))]
