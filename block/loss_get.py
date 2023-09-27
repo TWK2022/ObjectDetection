@@ -27,11 +27,10 @@ class loss_prepare(object):
         frame_loss = 0  # 总边框损失
         confidence_loss = 0  # 总置信度损失
         class_loss = 0  # 总分类损失
-        with torch.no_grad():
-            pred = self._frame_decode(pred)  # 将边框解码为(Cx,Cy,w,h)真实坐标。置信度和分类归一化在BCEWithLogitsLoss中完成
+        pred_decode = self._frame_decode(pred)  # 将边框解码为(Cx,Cy,w,h)真实坐标
         for i in range(len(pred)):  # 对每个输出层分别进行操作
             if True in judge[i]:  # 有需要预测的位置
-                pred_judge = pred[i][judge[i]]  # 预测的值
+                pred_judge = pred_decode[i][judge[i]]  # 预测的值
                 true_judge = true[i][judge[i]]  # 真实的标签
                 pred_judge, true_judge = self._center_to_min(pred_judge, true_judge)  # Cx,Cy转为x_min,y_min
                 # 计算损失
@@ -49,17 +48,18 @@ class loss_prepare(object):
                 confidence_loss += self.loss_weight[i][0] * self.loss_weight[i][2] * confidence_add  # 总置信度损失
         return frame_loss + confidence_loss + class_loss, frame_loss, confidence_loss, class_loss
 
-    def _frame_decode(self, output):
+    def _frame_decode(self, pred):
         # 遍历每一个大层
+        output = [_.clone() for _ in pred]
         for i in range(len(output)):
-            output[i][..., 0:4] = output[i][..., 0:4].sigmoid()  # 归一化
+            output[i][..., 0:4] = pred[i][..., 0:4].sigmoid()  # 归一化
             # 中心坐标[0-1]->[-0.5-1.5]->[-0.5*stride-80/40/20.5*stride]
-            output[i][..., 0] = (2 * output[i][..., 0] - 0.5 + self.grid[i].unsqueeze(1)) * self.stride[i]
-            output[i][..., 1] = (2 * output[i][..., 1] - 0.5 + self.grid[i]) * self.stride[i]
+            output[i][..., 0] = (2 * pred[i][..., 0] - 0.5 + self.grid[i].unsqueeze(1)) * self.stride[i]
+            output[i][..., 1] = (2 * pred[i][..., 1] - 0.5 + self.grid[i]) * self.stride[i]
             # 遍历每一个大层中的小层
             for j in range(3):
-                output[i][:, j, ..., 2] = 4 * output[i][:, j, ..., 2] ** 2 * self.anchor[i][j][0]  # [0-1]->[0-4*anchor]
-                output[i][:, j, ..., 3] = 4 * output[i][:, j, ..., 3] ** 2 * self.anchor[i][j][1]  # [0-1]->[0-4*anchor]
+                output[i][:, j, ..., 2] = (2 * pred[i][:, j, ..., 2]) ** 2 * self.anchor[i][j][0]  # [0-1]->[0-4*anchor]
+                output[i][:, j, ..., 3] = (2 * pred[i][:, j, ..., 3]) ** 2 * self.anchor[i][j][1]  # [0-1]->[0-4*anchor]
         return output
 
     def _center_to_min(self, pred, true):  # (Cx,Cy)->(x_min,y_min)
