@@ -69,10 +69,10 @@ class loss_prepare(object):
     def _ciou(self, pred, true):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
         iou = self._iou(pred, true)
         L1_L2 = self._L1_L2(pred, true)
-        v = (4 / (3.14159 ** 2)) * torch.square(
-            torch.atan(true[:, 2] / true[:, 3]) - torch.atan(pred[:, 2] / pred[:, 3]))
+        v = (4 / (3.14159 ** 2)) * torch.pow(torch.atan(true[:, 2] / true[:, 3]) - torch.atan(pred[:, 2] / pred[:, 3]),
+                                             2)
         with torch.no_grad():
-            alpha = v / (1 - iou + v + 0.00001)
+            alpha = v / (v + 1 - iou + 0.00001)
         return iou - L1_L2 - alpha * v
 
     def _iou(self, pred, true):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
