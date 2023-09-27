@@ -50,17 +50,16 @@ class loss_prepare(object):
 
     def _frame_decode(self, pred):
         # 遍历每一个大层
-        output = [_.clone() for _ in pred]
-        for i in range(len(output)):
-            output[i][..., 0:4] = pred[i][..., 0:4].sigmoid()  # 归一化
+        for i in range(len(pred)):
+            pred[i][..., 0:4] = pred[i][..., 0:4].sigmoid()  # 归一化
             # 中心坐标[0-1]->[-0.5-1.5]->[-0.5*stride-80/40/20.5*stride]
-            output[i][..., 0] = (2 * pred[i][..., 0] - 0.5 + self.grid[i].unsqueeze(1)) * self.stride[i]
-            output[i][..., 1] = (2 * pred[i][..., 1] - 0.5 + self.grid[i]) * self.stride[i]
+            pred[i][..., 0] = (2 * pred[i][..., 0] - 0.5 + self.grid[i].unsqueeze(1)) * self.stride[i]
+            pred[i][..., 1] = (2 * pred[i][..., 1] - 0.5 + self.grid[i]) * self.stride[i]
             # 遍历每一个大层中的小层
             for j in range(3):
-                output[i][:, j, ..., 2] = (2 * pred[i][:, j, ..., 2]) ** 2 * self.anchor[i][j][0]  # [0-1]->[0-4*anchor]
-                output[i][:, j, ..., 3] = (2 * pred[i][:, j, ..., 3]) ** 2 * self.anchor[i][j][1]  # [0-1]->[0-4*anchor]
-        return output
+                pred[i][:, j, ..., 2] = (2 * pred[i][:, j, ..., 2]) ** 2 * self.anchor[i][j][0]  # [0-1]->[0-4*anchor]
+                pred[i][:, j, ..., 3] = (2 * pred[i][:, j, ..., 3]) ** 2 * self.anchor[i][j][1]  # [0-1]->[0-4*anchor]
+        return pred
 
     def _center_to_min(self, pred, true):  # (Cx,Cy)->(x_min,y_min)
         pred[:, 0:2] = pred[:, 0:2] - pred[:, 2:4] / 2
