@@ -197,6 +197,7 @@ class torch_dataset(torch.utils.data.Dataset):
             label = self.data[index][1].copy()  # 读取原始标签([:,类别号+Cx,Cy,w,h]，边框为相对边长的比例值)
             image, frame = self._resize(image.astype(np.uint8), label[:, 1:])  # 缩放和填充图片，相对坐标(Cx,Cy,w,h)变为真实坐标
             cls_all = label[:, 0]  # 类别号
+        # self._draw(image.copy(), frame)  # 测试画图
         image = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_BGR2RGB)  # 转为RGB通道
         image = (torch.tensor(image, dtype=torch.float32) / 255).permute(2, 0, 1)
         # 边框:转换为张量
@@ -320,7 +321,6 @@ class torch_dataset(torch.utils.data.Dataset):
         judge_list = np.where((frame_all[:, 2] > screen) & (frame_all[:, 3] > screen), True, False)  # w,h不能小于screen
         frame_all = frame_all[judge_list]
         cls_all = cls_all[judge_list]
-        # self._draw(image_merge, frame_all)  # 测试画图
         return image_merge, frame_all, cls_all
 
     def _resize(self, image, frame):  # 将图片四周填充变为正方形，frame输入输出都为[[Cx,Cy,w,h]...](相对原图片的比例值)
