@@ -27,8 +27,7 @@ class loss_prepare(object):
         frame_loss = 0  # 总边框损失
         confidence_loss = 0  # 总置信度损失
         class_loss = 0  # 总分类损失
-        with torch.no_grad():
-            pred = self._frame_decode(pred)  # 将边框解码为(Cx,Cy,w,h)真实坐标
+        pred = self._frame_decode(pred)  # 将边框解码为(Cx,Cy,w,h)真实坐标
         for i in range(len(pred)):  # 对每个输出层分别进行操作
             if True in judge[i]:  # 有需要预测的位置
                 pred_judge = pred[i][judge[i]]  # 预测的值
@@ -36,8 +35,8 @@ class loss_prepare(object):
                 pred_judge, true_judge = self._center_to_min(pred_judge, true_judge)  # Cx,Cy转为x_min,y_min
                 # 计算损失
                 frame_add = self.loss_frame(pred_judge[:, 0:4], true_judge[:, 0:4])  # 边框损失(只计算需要的)
-                confidence_a = 0.8 * self.loss_confidence(pred[i][..., 4], true[i][..., 4])  # 置信度损失(计算所有的)
-                confidence_b = 0.2 * self.loss_confidence_add(pred_judge[:, 4], true_judge[:, 4])  # 正样本
+                confidence_a = 0.9 * self.loss_confidence(pred[i][..., 4], true[i][..., 4])  # 置信度损失(计算所有的)
+                confidence_b = 0.1 * self.loss_confidence_add(pred_judge[:, 4], true_judge[:, 4])  # 正样本
                 confidence_add = confidence_a + confidence_b
                 class_add = self.loss_class(pred_judge[:, 5:], true_judge[:, 5:])  # 分类损失(只计算需要的)
                 # 总损失
