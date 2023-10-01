@@ -6,8 +6,6 @@ import numpy as np
 from block.val_get import val_get
 from block.ModelEMA import ModelEMA
 from block.lr_get import adam, lr_adjust
-import tqdm
-import torch
 
 
 def train_get(args, data_dict, model_dict, loss):
