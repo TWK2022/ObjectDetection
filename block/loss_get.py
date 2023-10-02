@@ -81,8 +81,8 @@ class loss_prepare(object):
         x2 = torch.minimum(pred[:, 0] + pred[:, 2], true[:, 0] + true[:, 2])
         y2 = torch.minimum(pred[:, 1] + pred[:, 3], true[:, 1] + true[:, 3])
         zeros = torch.zeros(1, device=pred.device)
-        intersection = torch.maximum(x2 - x1, zeros) * torch.maximum(y2 - y1, zeros)
-        union = pred[:, 2] * pred[:, 3] + true[:, 2] * true[:, 3] - intersection
+        intersection = torch.maximum(x2 - x1, zeros) * torch.maximum(y2 - y1, zeros) + 0.00001
+        union = pred[:, 2] * pred[:, 3] + true[:, 2] * true[:, 3] - intersection + 0.00001
         return intersection / union
 
     def _L1_L2(self, pred, true):  # 输入为(batch,(x_min,y_min,w,h))相对/真实坐标
