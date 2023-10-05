@@ -222,14 +222,14 @@ class torch_dataset(torch.utils.data.Dataset):
                 frame[:, 2:4] = frame[:, 2:4] / self.wh_multiple
                 # 标签对应输出网格的坐标
                 Cx = frame[:, 0]
-                x_grid = Cx.type(torch.int8)
+                x_grid = Cx.type(torch.int32)
                 x_move = Cx - x_grid
-                x_grid_add = x_grid + 2 * torch.round(x_move).type(torch.int8) - 1  # 每个标签可以由相邻网格预测
+                x_grid_add = x_grid + 2 * torch.round(x_move).type(torch.int32) - 1  # 每个标签可以由相邻网格预测
                 x_grid_add = torch.clamp(x_grid_add, 0, self.output_size[i] - 1)  # 网格不能超出范围(与x_grid重复的网格之后不会加入)
                 Cy = frame[:, 1]
-                y_grid = Cy.type(torch.int8)
+                y_grid = Cy.type(torch.int32)
                 y_move = Cy - y_grid
-                y_grid_add = y_grid + 2 * torch.round(y_move).type(torch.int8) - 1  # 每个标签可以由相邻网格预测
+                y_grid_add = y_grid + 2 * torch.round(y_move).type(torch.int32) - 1  # 每个标签可以由相邻网格预测
                 y_grid_add = torch.clamp(y_grid_add, 0, self.output_size[i] - 1)  # 网格不能超出范围(与y_grid重复的网格之后不会加入)
                 # 遍历每个输出层的小层
                 for j in range(self.output_num[i]):
