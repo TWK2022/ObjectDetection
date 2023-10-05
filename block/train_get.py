@@ -148,10 +148,10 @@ def train_get(args, data_dict, model_dict, loss):
                 wandb_log = {}
                 if epoch == 0:
                     wandb_log.update({f'image/train_image': wandb_image_list})
-                wandb_log.update({'train/train_loss': train_loss,
-                                  'train/train_frame_loss': train_frame_loss,
-                                  'train/train_confidence_loss': train_confidence_loss,
-                                  'train/train_class_loss': train_class_loss,
+                wandb_log.update({'train_loss/train_loss': train_loss,
+                                  'train_loss/train_frame_loss': train_frame_loss,
+                                  'train_loss/train_confidence_loss': train_confidence_loss,
+                                  'train_loss/train_class_loss': train_class_loss,
                                   'val_loss/val_loss': val_loss,
                                   'val_loss/val_frame_loss': val_frame_loss,
                                   'val_loss/val_confidence_loss': val_confidence_loss,
