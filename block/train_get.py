@@ -29,7 +29,7 @@ def train_get(args, data_dict, model_dict, loss):
                                                    sampler=train_sampler, collate_fn=train_dataset.collate_fn)
     val_dataset = torch_dataset(args, 'val', data_dict['val'])
     val_sampler = None  # 分布式时数据合在主GPU上进行验证
-    val_batch = args.batch // args.gpu_number  # 分布式验证时batch要减少为一个GPU的量
+    val_batch = args.batch // args.device_number  # 分布式验证时batch要减少为一个GPU的量
     val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=val_batch, shuffle=False, drop_last=False,
                                                  pin_memory=args.latch, num_workers=args.num_worker,
                                                  sampler=val_sampler, collate_fn=val_dataset.collate_fn)
@@ -51,7 +51,7 @@ def train_get(args, data_dict, model_dict, loss):
         train_frame_loss = 0  # 记录边框损失
         train_confidence_loss = 0  # 记录置信度框损失
         train_class_loss = 0  # 记录类别损失
-        tqdm_show = tqdm.tqdm(total=len(data_dict['train']) // args.batch // args.gpu_number * args.gpu_number,
+        tqdm_show = tqdm.tqdm(total=len(data_dict['train']) // args.batch // args.device_number * args.device_number,
                               postfix=dict, mininterval=0.2) if args.local_rank == 0 else None  # tqdm
         for item, (image_batch, true_batch, judge_batch, label_list) in enumerate(train_dataloader):
             if args.wandb and args.local_rank == 0 and len(wandb_image_list) < args.wandb_image_num:
@@ -83,7 +83,7 @@ def train_get(args, data_dict, model_dict, loss):
             # tqdm
             if args.local_rank == 0:
                 tqdm_show.set_postfix({'当前loss': loss_batch.item()})  # 添加loss显示
-                tqdm_show.update(args.gpu_number)  # 更新进度条
+                tqdm_show.update(args.device_number)  # 更新进度条
             # wandb
             if args.wandb and args.local_rank == 0 and epoch == 0 and len(wandb_image_list) < args.wandb_image_num:
                 for i in range(len(wandb_image_batch)):  # 遍历每一张图片
