@@ -259,7 +259,7 @@ class torch_dataset(torch.utils.data.Dataset):
     def _mosaic(self, index_mix):  # 马赛克增强，合并后w,h不能小于screen
         x_center = int((torch.rand(1) * 0.4 + 0.3) * self.input_size)  # 0.3-0.7。四张图片合并的中心点
         y_center = int((torch.rand(1) * 0.4 + 0.3) * self.input_size)  # 0.3-0.7。四张图片合并的中心点
-        image_merge = np.full((self.input_size, self.input_size, 3), 127)  # 合并后的图片
+        image_merge = np.full((self.input_size, self.input_size, 3), 128)  # 合并后的图片
         frame_all = []  # 记录边框真实坐标(Cx,Cy,w,h)
         cls_all = []  # 记录类别号
         for item, index in enumerate(index_mix):
@@ -338,7 +338,7 @@ class torch_dataset(torch.utils.data.Dataset):
             frame *= self.input_size
             return image, frame
         else:
-            image_resize = np.full((self.input_size, self.input_size, 3), 127)
+            image_resize = np.full((self.input_size, self.input_size, 3), 128)
             if w0 >= h0:  # 宽大于高
                 w = self.input_size
                 h = int(w / w0 * h0)
