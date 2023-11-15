@@ -1,8 +1,8 @@
 import os
 import torch
 
-choice_dict = {'yolov5': 'model_prepare(args)._yolov5()',
-               'yolov7': 'model_prepare(args)._yolov7()'}
+choice_dict = {'yolov5': 'model_prepare(args).yolov5()',
+               'yolov7': 'model_prepare(args).yolov7()'}
 
 
 def model_get(args):
@@ -17,7 +17,7 @@ def model_get(args):
             model = eval(choice_dict[args.model])
         model_dict = {}
         model_dict['model'] = model
-        model_dict['epoch'] = -1  # 已训练的轮次
+        model_dict['epoch'] = 0  # 已训练的轮次
         model_dict['optimizer_state_dict'] = None  # 学习率参数
         model_dict['lr_adjust_item'] = 0  # 学习率调整参数
         model_dict['ema_updates'] = 0  # ema参数
@@ -85,12 +85,12 @@ class model_prepare(object):
     def __init__(self, args):
         self.args = args
 
-    def _yolov5(self):
+    def yolov5(self):
         from model.yolov5 import yolov5
         model = yolov5(self.args)
         return model
 
-    def _yolov7(self):
+    def yolov7(self):
         from model.yolov7 import yolov7
         model = yolov7(self.args)
         return model

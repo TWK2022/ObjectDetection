@@ -370,16 +370,16 @@ class torch_dataset(torch.utils.data.Dataset):
             cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), color=(0, 255, 0), thickness=2)
         cv2.imwrite('save_check.jpg', image)
 
-    def collate_fn(self, getitem_batch):  # 自定义__getitem__合并方式
+    def collate_fn(self, getitem_list):  # 自定义__getitem__合并方式
         image_list = []
-        label_matrix_list = [[] for _ in range(len(getitem_batch[0][1]))]
-        judge_matrix_list = [[] for _ in range(len(getitem_batch[0][2]))]
+        label_matrix_list = [[] for _ in range(len(getitem_list[0][1]))]
+        judge_matrix_list = [[] for _ in range(len(getitem_list[0][2]))]
         label_list = []
-        for i in range(len(getitem_batch)):  # 遍历所有__getitem__
-            image = getitem_batch[i][0]
-            label_matrix = getitem_batch[i][1]
-            judge_matrix = getitem_batch[i][2]
-            label = getitem_batch[i][3]
+        for i in range(len(getitem_list)):  # 遍历所有__getitem__
+            image = getitem_list[i][0]
+            label_matrix = getitem_list[i][1]
+            judge_matrix = getitem_list[i][2]
+            label = getitem_list[i][3]
             image_list.append(image)
             for j in range(len(label_matrix)):  # 遍历每个输出层
                 label_matrix_list[j].append(label_matrix[j])

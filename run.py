@@ -1,11 +1,11 @@
 # 数据需准备成以下格式(标准YOLO格式)
-# ├── 数据集路径:data_path
-#     └── image:存放所有图片
-#     └── label:存放所有图片的标签，名称:图片名.txt，内容:(类别号 x_center y_center w h\n)相对图片的比例值
-#     └── train.txt:训练图片的绝对路径(或相对data_path下路径)
-#     └── val.txt:验证图片的绝对路径(或相对data_path下路径)
-#     └── class.txt:所有的类别名称
-# class.csv内容如下:
+# ├── 数据集路径：data_path
+#     └── image：存放所有图片
+#     └── label：存放所有图片的标签，名称:图片名.txt，内容：(类别号 x_center y_center w h\n)相对图片的比例值
+#     └── train.txt：训练图片的绝对路径(或相对data_path下路径)
+#     └── val.txt：验证图片的绝对路径(或相对data_path下路径)
+#     └── class.txt：所有的类别名称
+# class.csv内容如下：
 # 类别1
 # 类别2
 # ...
@@ -20,7 +20,7 @@ from block.loss_get import loss_get
 from block.train_get import train_get
 
 # -------------------------------------------------------------------------------------------------------------------- #
-# 分布式训练:
+# 分布式训练：
 # python -m torch.distributed.launch --master_port 9999 --nproc_per_node n run.py --distributed True
 # master_port为GPU之间的通讯端口，空闲的即可
 # n为GPU数量
@@ -92,17 +92,17 @@ if args.distributed:
 # 初步检查
 if args.local_rank == 0:
     print(f'| args:{args} |')
-    assert os.path.exists(f'{args.data_path}/image'), 'data_path中缺少:image'
-    assert os.path.exists(f'{args.data_path}/label'), 'data_path中缺少:label'
-    assert os.path.exists(f'{args.data_path}/train.txt'), 'data_path中缺少:train.txt'
-    assert os.path.exists(f'{args.data_path}/val.txt'), 'data_path中缺少:val.txt'
-    assert os.path.exists(f'{args.data_path}/class.txt'), 'data_path中缺少:class.txt'
+    assert os.path.exists(f'{args.data_path}/image'), '! data_path中缺少:image !'
+    assert os.path.exists(f'{args.data_path}/label'), '! data_path中缺少:label !'
+    assert os.path.exists(f'{args.data_path}/train.txt'), '! data_path中缺少:train.txt !'
+    assert os.path.exists(f'{args.data_path}/val.txt'), '! data_path中缺少:val.txt !'
+    assert os.path.exists(f'{args.data_path}/class.txt'), '! data_path中缺少:class.txt !'
     if os.path.exists(args.weight):  # 优先加载已有模型args.weight继续训练
         print(f'| 加载已有模型:{args.weight} |')
     elif args.prune:
         print(f'| 加载模型+剪枝训练:{args.prune_weight} |')
     else:  # 创建自定义模型args.model
-        assert os.path.exists(f'model/{args.model}.py'), f'没有此自定义模型:{args.model}'
+        assert os.path.exists(f'model/{args.model}.py'), f'! 没有此自定义模型:{args.model} !'
         print(f'| 创建自定义模型:{args.model} | 型号:{args.model_type} |')
 # -------------------------------------------------------------------------------------------------------------------- #
 # 程序
