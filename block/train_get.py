@@ -63,16 +63,16 @@ def train_get(args, data_dict, model_dict, loss):
                 with torch.cuda.amp.autocast():
                     pred_batch = model(image_batch)
                     loss_batch, frame_loss, confidence_loss, class_loss = loss(pred_batch, true_batch, judge_batch)
-                optimizer.zero_grad()
                 args.amp.scale(loss_batch).backward()
                 args.amp.step(optimizer)
                 args.amp.update()
+                optimizer.zero_grad()
             else:
                 pred_batch = model(image_batch)
                 loss_batch, frame_loss, confidence_loss, class_loss = loss(pred_batch, true_batch, judge_batch)
-                optimizer.zero_grad()
                 loss_batch.backward()
                 optimizer.step()
+                optimizer.zero_grad()
             # 调整参数，ema.updates会自动+1
             ema.update(model) if args.ema else None
             # 记录损失
