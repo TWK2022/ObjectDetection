@@ -53,7 +53,7 @@ def train_get(args, data_dict, model_dict, loss):
         train_class_loss = 0  # 记录类别损失
         tqdm_show = tqdm.tqdm(total=len(data_dict['train']) // args.batch // args.device_number * args.device_number,
                               postfix=dict, mininterval=0.2) if args.local_rank == 0 else None  # tqdm
-        for item, (image_batch, true_batch, judge_batch, label_list) in enumerate(train_dataloader):
+        for index, (image_batch, true_batch, judge_batch, label_list) in enumerate(train_dataloader):
             if args.wandb and args.local_rank == 0 and len(wandb_image_list) < args.wandb_image_num:
                 wandb_image_batch = (image_batch * 255).cpu().numpy().astype(np.uint8).transpose(0, 2, 3, 1)
             image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到设备上
@@ -109,10 +109,10 @@ def train_get(args, data_dict, model_dict, loss):
         # tqdm
         tqdm_show.close() if args.local_rank == 0 else None
         # 计算平均损失
-        train_loss = train_loss / (item + 1)
-        train_frame_loss = train_frame_loss / (item + 1)
-        train_confidence_loss = train_confidence_loss / (item + 1)
-        train_class_loss = train_class_loss / (item + 1)
+        train_loss = train_loss / (index + 1)
+        train_frame_loss = train_frame_loss / (index + 1)
+        train_confidence_loss = train_confidence_loss / (index + 1)
+        train_class_loss = train_class_loss / (index + 1)
         print('\n| 轮次:{} | train_loss:{:.4f} | train_frame_loss:{:.4f} | train_confidence_loss:{:.4f} |'
               ' train_class_loss:{:.4f} | lr:{:.6f} |\n'
               .format(epoch + 1, train_loss, train_frame_loss, train_confidence_loss, train_class_loss,
@@ -262,7 +262,7 @@ class torch_dataset(torch.utils.data.Dataset):
         image_merge = np.full((self.input_size, self.input_size, 3), 128)  # 合并后的图片
         frame_all = []  # 记录边框真实坐标(Cx,Cy,w,h)
         cls_all = []  # 记录类别号
-        for item, index in enumerate(index_mix):
+        for i, index in enumerate(index_mix):
             image = cv2.imdecode(np.fromfile(self.data[index][0], dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片(可以读取中文)
             label = self.data[index][1].copy()  # 相对坐标(类别号,Cx,Cy,w,h)
             # hsv通道变换
@@ -289,19 +289,19 @@ class torch_dataset(torch.utils.data.Dataset):
             h = int(h * scale_h)
             image = cv2.resize(image, (w, h))
             # 合并图片，坐标变为合并后的真实坐标(Cx,Cy,w,h)
-            if item == 0:  # 左上
+            if i == 0:  # 左上
                 x_add, y_add = min(x_center, w), min(y_center, h)
                 image_merge[y_center - y_add:y_center, x_center - x_add:x_center] = image[h - y_add:h, w - x_add:w]
                 label[:, 1] = label[:, 1] * w + x_center - w  # Cx
                 label[:, 2] = label[:, 2] * h + y_center - h  # Cy
                 label[:, 3:5] = label[:, 3:5] * (w, h)  # w,h
-            elif item == 1:  # 右上
+            elif i == 1:  # 右上
                 x_add, y_add = min(self.input_size - x_center, w), min(y_center, h)
                 image_merge[y_center - y_add:y_center, x_center:x_center + x_add] = image[h - y_add:h, 0:x_add]
                 label[:, 1] = label[:, 1] * w + x_center  # Cx
                 label[:, 2] = label[:, 2] * h + y_center - h  # Cy
                 label[:, 3:5] = label[:, 3:5] * (w, h)  # w,h
-            elif item == 2:  # 右下
+            elif i == 2:  # 右下
                 x_add, y_add = min(self.input_size - x_center, w), min(self.input_size - y_center, h)
                 image_merge[y_center:y_center + y_add, x_center:x_center + x_add] = image[0:y_add, 0:x_add]
                 label[:, 1] = label[:, 1] * w + x_center  # Cx
