@@ -51,8 +51,9 @@ def train_get(args, data_dict, model_dict, loss):
         train_frame_loss = 0  # 记录边框损失
         train_confidence_loss = 0  # 记录置信度框损失
         train_class_loss = 0  # 记录类别损失
-        tqdm_show = tqdm.tqdm(total=len(data_dict['train']) // args.batch // args.device_number * args.device_number,
-                              postfix=dict, mininterval=0.2) if args.local_rank == 0 else None  # tqdm
+        if args.local_rank == 0:  # tqdm
+            tqdm_len = len(data_dict['train']) // args.batch // args.device_number * args.device_number
+            tqdm_show = tqdm.tqdm(total=tqdm_len, mininterval=0.2)
         for index, (image_batch, true_batch, judge_batch, label_list) in enumerate(train_dataloader):
             if args.wandb and args.local_rank == 0 and len(wandb_image_list) < args.wandb_image_num:
                 wandb_image_batch = (image_batch * 255).cpu().numpy().astype(np.uint8).transpose(0, 2, 3, 1)
@@ -82,7 +83,7 @@ def train_get(args, data_dict, model_dict, loss):
             train_class_loss += class_loss.item()
             # tqdm
             if args.local_rank == 0:
-                tqdm_show.set_postfix({'当前loss': loss_batch.item()})  # 添加loss显示
+                tqdm_show.set_postfix({'loss': loss_batch.item()})  # 添加loss显示
                 tqdm_show.update(args.device_number)  # 更新进度条
             # wandb
             if args.wandb and args.local_rank == 0 and epoch == 0 and len(wandb_image_list) < args.wandb_image_num:
@@ -107,16 +108,18 @@ def train_get(args, data_dict, model_dict, loss):
                     if len(wandb_image_list) == args.wandb_image_num:
                         break
         # tqdm
-        tqdm_show.close() if args.local_rank == 0 else None
+        if args.local_rank == 0:
+            tqdm_show.close()
         # 计算平均损失
         train_loss = train_loss / (index + 1)
         train_frame_loss = train_frame_loss / (index + 1)
         train_confidence_loss = train_confidence_loss / (index + 1)
         train_class_loss = train_class_loss / (index + 1)
-        print('\n| 轮次:{} | train_loss:{:.4f} | train_frame_loss:{:.4f} | train_confidence_loss:{:.4f} |'
-              ' train_class_loss:{:.4f} | lr:{:.6f} |\n'
-              .format(epoch + 1, train_loss, train_frame_loss, train_confidence_loss, train_class_loss,
-                      optimizer.param_groups[0]['lr']))
+        if args.local_rank == 0:
+            print('\n| 轮次:{} | train_loss:{:.4f} | train_frame_loss:{:.4f} | train_confidence_loss:{:.4f} |'
+                  ' train_class_loss:{:.4f} | lr:{:.6f} |\n'
+                  .format(epoch + 1, train_loss, train_frame_loss, train_confidence_loss, train_class_loss,
+                          optimizer.param_groups[0]['lr']))
         # 调整学习率
         optimizer = optimizer_adjust(optimizer, epoch + 1, train_loss)
         # 清理显存空间
