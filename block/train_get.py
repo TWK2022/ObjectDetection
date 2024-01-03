@@ -43,8 +43,7 @@ def train_get(args, data_dict, model_dict, loss):
         for i in range(len(data_dict['class'])):
             wandb_class_name[i] = data_dict['class'][i]
     epoch_base = model_dict['epoch'] + 1  # 新的一轮要+1
-    for epoch in range(epoch_base, epoch_base + args.epoch):
-        # 训练
+    for epoch in range(epoch_base, epoch_base + args.epoch):  # 训练
         print(f'\n-----------------------第{epoch}轮-----------------------') if args.local_rank == 0 else None
         model.train()
         train_loss = 0  # 记录训练损失
