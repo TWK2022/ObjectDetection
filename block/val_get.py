@@ -15,7 +15,7 @@ def val_get(args, val_dataloader, model, loss, ema):
         nms_tp_all = 0
         nms_fp_all = 0
         nms_fn_all = 0
-        for item, (image_batch, true_batch, judge_batch, label_list) in enumerate(tqdm.tqdm(val_dataloader)):
+        for index, (image_batch, true_batch, judge_batch, label_list) in enumerate(tqdm.tqdm(val_dataloader)):
             image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到设备上
             for i in range(len(true_batch)):  # 将标签矩阵放到对应设备上
                 true_batch[i] = true_batch[i].to(args.device, non_blocking=args.latch)
@@ -48,12 +48,12 @@ def val_get(args, val_dataloader, model, loss, ema):
                 nms_fn_all += nms_fn
                 nms_fp_all += nms_fp
         # 计算平均损失
-        val_loss = val_loss / (item + 1)
-        val_frame_loss = val_frame_loss / (item + 1)
-        val_confidence_loss = val_confidence_loss / (item + 1)
-        val_class_loss = val_class_loss / (item + 1)
-        print('\n| val_loss{:.4f} | val_frame_loss:{:.4f} | val_confidence_loss:{:.4f} | val_class_loss:{:.4f} |'
-              .format(val_loss, val_frame_loss, val_confidence_loss, val_class_loss))
+        val_loss /= index + 1
+        val_frame_loss /= index + 1
+        val_confidence_loss /= index + 1
+        val_class_loss /= index + 1
+        print(f'\n| val_loss{val_loss:.4f} | val_frame_loss:{val_frame_loss:.4f} |'
+              f' val_confidence_loss:{val_confidence_loss:.4f} | val_class_loss:{val_class_loss:.4f} |')
         # 计算指标
         precision = nms_tp_all / (nms_tp_all + nms_fp_all + 0.001)
         recall = nms_tp_all / (nms_tp_all + nms_fn_all + 0.001)
