@@ -48,7 +48,7 @@ parser.add_argument('--label_smooth', default=(0.01, 0.99), type=tuple, help='|�
 parser.add_argument('--epoch', default=300, type=int, help='|训练轮数，继续训练时为增加的训练轮数|')
 parser.add_argument('--batch', default=8, type=int, help='|训练批量大小|')
 parser.add_argument('--lr_start', default=0.001, type=float, help='|初始学习率，adam算法，3轮预热训练，基准为0.001|')
-parser.add_argument('--lr_end_ratio', default=0.2, type=float, help='|最终学习率=lr_end_ratio*lr_start，基准为0.2|')
+parser.add_argument('--lr_end_ratio', default=0.1, type=float, help='|最终学习率=lr_end_ratio*lr_start，基准为0.1|')
 parser.add_argument('--lr_adjust_num', default=200, type=int, help='|学习率下降调整次数，余玄下降法，要小于总轮次|')
 parser.add_argument('--lr_adjust_threshold', default=0.9, type=float, help='|损失下降比较快时不调整学习率，基准为0.9|')
 parser.add_argument('--regularization', default='L2', type=str, help='|正则化，有L2、None|')
