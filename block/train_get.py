@@ -14,8 +14,9 @@ def train_get(args, data_dict, model_dict, loss):
     # 学习率
     optimizer = adam(args.regularization, args.r_value, model.parameters(), lr=args.lr_start, betas=(0.937, 0.999))
     optimizer.load_state_dict(model_dict['optimizer_state_dict']) if model_dict['optimizer_state_dict'] else None
-    optimizer_adjust = lr_adjust(args, model_dict['lr_adjust_index'])  # 学习率调整函数
-    optimizer = optimizer_adjust(optimizer, model_dict['epoch'] + 1, 0)  # 初始化学习率
+    step_epoch = len(data_dict['train']) // args.batch // args.device_number * args.device_number  # 每轮的步数
+    optimizer_adjust = lr_adjust(args, step_epoch, model_dict['epoch_finished'])  # 学习率调整函数
+    optimizer = optimizer_adjust(optimizer)  # 学习率初始化
     # 使用平均指数移动(EMA)调整参数(不能将ema放到args中，否则会导致模型保存出错)
     ema = ModelEMA(model) if args.ema else None
     if args.ema:
@@ -42,8 +43,8 @@ def train_get(args, data_dict, model_dict, loss):
         wandb_class_name = {}  # 用于给边框添加标签名字
         for i in range(len(data_dict['class'])):
             wandb_class_name[i] = data_dict['class'][i]
-    epoch_base = model_dict['epoch'] + 1  # 新的一轮要+1
-    for epoch in range(epoch_base, epoch_base + args.epoch):  # 训练
+    epoch_base = model_dict['epoch_finished'] + 1  # 新的一轮要+1
+    for epoch in range(epoch_base, args.epoch + 1):  # 训练
         print(f'\n-----------------------第{epoch}轮-----------------------') if args.local_rank == 0 else None
         model.train()
         train_loss = 0  # 记录训练损失
@@ -51,8 +52,7 @@ def train_get(args, data_dict, model_dict, loss):
         train_confidence_loss = 0  # 记录置信度框损失
         train_class_loss = 0  # 记录类别损失
         if args.local_rank == 0:  # tqdm
-            tqdm_len = len(data_dict['train']) // args.batch // args.device_number * args.device_number
-            tqdm_show = tqdm.tqdm(total=tqdm_len, mininterval=0.2)
+            tqdm_show = tqdm.tqdm(total=step_epoch, mininterval=0.2)
         for index, (image_batch, true_batch, judge_batch, label_list) in enumerate(train_dataloader):
             if args.wandb and args.local_rank == 0 and len(wandb_image_list) < args.wandb_image_num:
                 wandb_image_batch = (image_batch * 255).cpu().numpy().astype(np.uint8).transpose(0, 2, 3, 1)
@@ -80,9 +80,12 @@ def train_get(args, data_dict, model_dict, loss):
             train_frame_loss += frame_loss.item()
             train_confidence_loss += confidence_loss.item()
             train_class_loss += class_loss.item()
+            # 调整学习率
+            optimizer = optimizer_adjust(optimizer)
             # tqdm
             if args.local_rank == 0:
-                tqdm_show.set_postfix({'train_loss': loss_batch.item()})  # 添加loss显示
+                tqdm_show.set_postfix({'train_loss': loss_batch.item(),
+                                       'lr': optimizer.param_groups[0]['lr']})  # 添加显示
                 tqdm_show.update(args.device_number)  # 更新进度条
             # wandb
             if args.wandb and args.local_rank == 0 and epoch == 0 and len(wandb_image_list) < args.wandb_image_num:
@@ -115,11 +118,9 @@ def train_get(args, data_dict, model_dict, loss):
         train_confidence_loss /= index + 1
         train_class_loss /= index + 1
         if args.local_rank == 0:
-            print(f'\n| 轮次:{epoch} | train_loss:{train_loss:.4f} | train_frame_loss:{train_frame_loss:.4f} |'
+            print(f'\n| 训练 | train_loss:{train_loss:.4f} | train_frame_loss:{train_frame_loss:.4f} |'
                   f' train_confidence_loss:{train_confidence_loss:.4f} | train_class_loss:{train_class_loss:.4f} |'
                   f' lr:{optimizer.param_groups[0]["lr"]:.6f} |\n')
-        # 调整学习率
-        optimizer = optimizer_adjust(optimizer, epoch + 1, train_loss)
         # 清理显存空间
         del image_batch, true_batch, judge_batch, pred_batch, loss_batch
         torch.cuda.empty_cache()
@@ -130,9 +131,8 @@ def train_get(args, data_dict, model_dict, loss):
         # 保存
         if args.local_rank == 0:  # 分布式时只保存一次
             model_dict['model'] = model.module if args.distributed else model.eval()
-            model_dict['epoch'] = epoch
+            model_dict['epoch_finished'] = epoch
             model_dict['optimizer_state_dict'] = optimizer.state_dict()
-            model_dict['lr_adjust_index'] = optimizer_adjust.lr_adjust_index
             model_dict['ema_updates'] = ema.updates if args.ema else model_dict['ema_updates']
             model_dict['class'] = data_dict['class']
             model_dict['train_loss'] = train_loss
