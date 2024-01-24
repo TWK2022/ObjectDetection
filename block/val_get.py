@@ -52,11 +52,11 @@ def val_get(args, val_dataloader, model, loss, ema):
         val_frame_loss /= index + 1
         val_confidence_loss /= index + 1
         val_class_loss /= index + 1
-        print(f'\n| val_loss{val_loss:.4f} | val_frame_loss:{val_frame_loss:.4f} |'
+        print(f'\n| 验证 | val_loss{val_loss:.4f} | val_frame_loss:{val_frame_loss:.4f} |'
               f' val_confidence_loss:{val_confidence_loss:.4f} | val_class_loss:{val_class_loss:.4f} |')
         # 计算指标
         precision = nms_tp_all / (nms_tp_all + nms_fp_all + 0.001)
         recall = nms_tp_all / (nms_tp_all + nms_fn_all + 0.001)
         m_ap = precision * recall
-        print('| precision:{:.4f} | recall:{:.4f} | m_ap:{:.4f} |'.format(precision, recall, m_ap))
+        print('| 验证 | precision:{:.4f} | recall:{:.4f} | m_ap:{:.4f} |'.format(precision, recall, m_ap))
     return val_loss, val_frame_loss, val_confidence_loss, val_class_loss, precision, recall, m_ap
