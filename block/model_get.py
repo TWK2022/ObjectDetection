@@ -17,9 +17,8 @@ def model_get(args):
             model = eval(choice_dict[args.model])
         model_dict = {}
         model_dict['model'] = model
-        model_dict['epoch'] = 0  # 已训练的轮次
+        model_dict['epoch_finished'] = 0  # 已训练的轮数
         model_dict['optimizer_state_dict'] = None  # 学习率参数
-        model_dict['lr_adjust_index'] = 0  # 学习率调整次数
         model_dict['ema_updates'] = 0  # ema参数
         model_dict['standard'] = 0  # 评价指标
     return model_dict
@@ -94,13 +93,3 @@ class model_prepare:
         from model.yolov7 import yolov7
         model = yolov7(self.args)
         return model
-
-
-if __name__ == '__main__':
-    import argparse
-
-    parser = argparse.ArgumentParser(description='分类任务')
-    parser.add_argument('--model', default='', type=str, help='|模型选择|')
-    parser.add_argument('--weight', default='', type=str, help='|模型位置，如果没找到模型则创建新模型|')
-    args = parser.parse_args()
-    model_get(args)
