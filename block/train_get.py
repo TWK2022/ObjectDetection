@@ -4,7 +4,7 @@ import wandb
 import torch
 import numpy as np
 from block.val_get import val_get
-from block.ModelEMA import ModelEMA
+from block.model_ema import model_ema
 from block.lr_get import adam, lr_adjust
 
 
