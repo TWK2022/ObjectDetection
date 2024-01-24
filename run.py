@@ -45,17 +45,17 @@ parser.add_argument('--save_path', default='best.pt', type=str, help='|保存最
 parser.add_argument('--loss_weight', default=((1 / 3, 0.3, 0.5, 0.2), (1 / 3, 0.4, 0.4, 0.2), (1 / 3, 0.5, 0.3, 0.2)),
                     type=tuple, help='|每个输出层(从大到小排序)的权重->[总权重、边框权重、置信度权重、分类权重]|')
 parser.add_argument('--label_smooth', default=(0.01, 0.99), type=tuple, help='|标签平滑的值|')
-parser.add_argument('--epoch', default=300, type=int, help='|训练轮数，继续训练时为增加的训练轮数|')
+parser.add_argument('--epoch', default=300, type=int, help='|训练总轮数(包含之前已训练轮数)|')
 parser.add_argument('--batch', default=8, type=int, help='|训练批量大小，分布式时为总批量|')
-parser.add_argument('--lr_start', default=0.001, type=float, help='|初始学习率，adam算法，3轮预热训练，基准为0.001|')
+parser.add_argument('--warmup_ratio', default=0.01, type=float, help='|预热训练步数占总步数比例，最少5步，基准为0.01|')
+parser.add_argument('--lr_start', default=0.001, type=float, help='|初始学习率，adam算法，批量小时要减小，基准为0.001|')
 parser.add_argument('--lr_end_ratio', default=0.1, type=float, help='|最终学习率=lr_end_ratio*lr_start，基准为0.1|')
-parser.add_argument('--lr_adjust_num', default=200, type=int, help='|学习率下降调整次数，余玄下降法，要小于总轮次|')
-parser.add_argument('--lr_adjust_threshold', default=0.9, type=float, help='|损失下降比较快时不调整学习率，基准为0.9|')
+parser.add_argument('--lr_end_epoch', default=200, type=int, help='|最终学习率达到的轮数，每一步都调整，余玄下降法|')
 parser.add_argument('--regularization', default='L2', type=str, help='|正则化，有L2、None|')
 parser.add_argument('--r_value', default=0.0005, type=float, help='|正则化权重系数，基准为0.0005|')
 parser.add_argument('--device', default='cuda', type=str, help='|训练设备|')
 parser.add_argument('--latch', default=True, type=bool, help='|模型和数据是否为锁存，True为锁存|')
-parser.add_argument('--num_worker', default=0, type=int, help='|CPU处理数据的进程数，0表示只有一个主进程，一般为0、2、4、8|')
+parser.add_argument('--num_worker', default=0, type=int, help='|CPU处理数据的进程数，0只有一个主进程，一般为0、2、4、8|')
 parser.add_argument('--ema', default=True, type=bool, help='|使用平均指数移动(EMA)调整参数|')
 parser.add_argument('--amp', default=False, type=bool, help='|混合float16精度训练，windows上可能会出现nan，但linux正常|')
 parser.add_argument('--mosaic', default=0.5, type=float, help='|使用mosaic增强的概率|')
@@ -114,8 +114,6 @@ if __name__ == '__main__':
     # 损失
     loss = loss_get(args)
     # 摘要
-    print('| 训练集:{} | 验证集:{} | 批量{} | 模型:{} | 输入尺寸:{} | 初始学习率:{} |'
-          .format(len(data_dict['train']), len(data_dict['val']), args.batch, args.model, args.input_size,
-                  args.lr_start)) if args.local_rank == 0 else None
+    print(f'| args:{args} |') if args.local_rank == 0 else None
     # 训练
     train_get(args, data_dict, model_dict, loss)
