@@ -6,10 +6,9 @@ from model.layer import cbs, c3, sppf, concat, head
 class yolov5(torch.nn.Module):
     def __init__(self, args):
         super().__init__()
-        self.input_size = args.input_size
-        self.stride = (8, 16, 32)
-        self.output_num = (3, 3, 3)  # 每个输出层的小层数
-        self.output_size = [int(self.input_size // i) for i in self.stride]  # 每个输出层的尺寸，如(80,40,20)
+        input_size = args.input_size
+        stride = (8, 16, 32)
+        self.output_size = [int(input_size // i) for i in stride]  # 每个输出层的尺寸，如(80,40,20)
         self.output_class = args.output_class
         dim_dict = {'n': 8, 's': 16, 'm': 32, 'l': 64}
         n_dict = {'n': 1, 's': 1, 'm': 2, 'l': 3}
@@ -70,17 +69,14 @@ class yolov5(torch.nn.Module):
         x = self.l16([x, l4])
         x = self.l17(x)
         output0 = self.output0(x)
-        output0 = output0.reshape(-1, 3, self.output_size[0], self.output_size[0], 5 + self.output_class)  # 变形
         x = self.l18(x)
         x = self.l19([x, l14])
         x = self.l20(x)
         output1 = self.output1(x)
-        output1 = output1.reshape(-1, 3, self.output_size[1], self.output_size[1], 5 + self.output_class)  # 变形
         x = self.l21(x)
         x = self.l22([x, l10])
         x = self.l23(x)
         output2 = self.output2(x)
-        output2 = output2.reshape(-1, 3, self.output_size[2], self.output_size[2], 5 + self.output_class)  # 变形
         return [output0, output1, output2]
 
 
@@ -93,10 +89,9 @@ if __name__ == '__main__':
     parser.add_argument('--model_type', default='n', type=str)
     parser.add_argument('--input_size', default=640, type=int)
     parser.add_argument('--output_class', default=1, type=int)
-    parser.add_argument('--device', default='cuda', type=str)
     args = parser.parse_args()
-    model = yolov5(args).to(args.device)
-    print(model)
-    tensor = torch.rand(2, 3, args.input_size, args.input_size, dtype=torch.float32).to(args.device)
+    model = yolov5(args).to('cpu')
+    tensor = torch.rand(2, 3, args.input_size, args.input_size, dtype=torch.float32).to('cpu')
     pred = model(tensor)
+    print(model)
     print(pred[0].shape, pred[1].shape, pred[2].shape)
