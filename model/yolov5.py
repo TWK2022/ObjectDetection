@@ -6,12 +6,12 @@ from model.layer import cbs, c3, sppf, concat, head
 class yolov5(torch.nn.Module):
     def __init__(self, args):
         super().__init__()
+        dim_dict = {'n': 8, 's': 16, 'm': 32, 'l': 64}
+        n_dict = {'n': 1, 's': 1, 'm': 2, 'l': 3}
         input_size = args.input_size
         stride = (8, 16, 32)
         self.output_size = [int(input_size // i) for i in stride]  # 每个输出层的尺寸，如(80,40,20)
         self.output_class = args.output_class
-        dim_dict = {'n': 8, 's': 16, 'm': 32, 'l': 64}
-        n_dict = {'n': 1, 's': 1, 'm': 2, 'l': 3}
         dim = dim_dict[args.model_type]
         n = n_dict[args.model_type]
         # 网络结构
