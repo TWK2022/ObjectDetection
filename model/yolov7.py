@@ -6,10 +6,9 @@ from model.layer import cbs, elan, elan_h, mp, sppcspc, concat, head
 class yolov7(torch.nn.Module):
     def __init__(self, args):
         super().__init__()
-        self.input_size = args.input_size
-        self.stride = (8, 16, 32)
-        self.output_num = (3, 3, 3)  # 每个输出层的小层数
-        self.output_size = [int(self.input_size // i) for i in self.stride]  # 每个输出层的尺寸，如(80,40,20)
+        input_size = args.input_size
+        stride = (8, 16, 32)
+        self.output_size = [int(input_size // i) for i in stride]  # 每个输出层的尺寸，如(80,40,20)
         self.output_class = args.output_class
         dim_dict = {'n': 8, 's': 16, 'm': 32, 'l': 64}
         n_dict = {'n': 1, 's': 1, 'm': 2, 'l': 3}
@@ -53,7 +52,7 @@ class yolov7(torch.nn.Module):
             # ---------- #
             self.output0 = head(4 * dim, self.output_size[0], self.output_class)
             self.output1 = head(8 * dim, self.output_size[1], self.output_class)
-            self.output2 = head(16 * dim,  self.output_size[2], self.output_class)
+            self.output2 = head(16 * dim, self.output_size[2], self.output_class)
         else:  # 剪枝版本
             config = args.prune_num
             self.l0 = cbs(3, config[0], 1, 1)
@@ -140,10 +139,9 @@ if __name__ == '__main__':
     parser.add_argument('--model_type', default='n', type=str)
     parser.add_argument('--input_size', default=640, type=int)
     parser.add_argument('--output_class', default=1, type=int)
-    parser.add_argument('--device', default='cuda', type=str)
     args = parser.parse_args()
-    model = yolov7(args).to(args.device)
-    print(model)
-    tensor = torch.rand(2, 3, args.input_size, args.input_size, dtype=torch.float32).to(args.device)
+    model = yolov7(args).to('cpu')
+    tensor = torch.rand(2, 3, args.input_size, args.input_size, dtype=torch.float32).to('cpu')
     pred = model(tensor)
+    print(model)
     print(pred[0].shape, pred[1].shape, pred[2].shape)
