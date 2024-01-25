@@ -132,7 +132,6 @@ class yolov7(torch.nn.Module):
 
 if __name__ == '__main__':
     import argparse
-    from layer import cbs, elan, elan_h, mp, sppcspc, concat, head
 
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--prune', default=False, type=bool)
@@ -140,8 +139,8 @@ if __name__ == '__main__':
     parser.add_argument('--input_size', default=640, type=int)
     parser.add_argument('--output_class', default=1, type=int)
     args = parser.parse_args()
-    model = yolov7(args).to('cpu')
-    tensor = torch.rand(2, 3, args.input_size, args.input_size, dtype=torch.float32).to('cpu')
+    model = yolov7(args)
+    tensor = torch.rand(2, 3, args.input_size, args.input_size, dtype=torch.float32)
     pred = model(tensor)
     print(model)
     print(pred[0].shape, pred[1].shape, pred[2].shape)
