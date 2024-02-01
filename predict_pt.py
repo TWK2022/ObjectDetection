@@ -17,15 +17,15 @@ parser.add_argument('--input_size', default=640, type=int, help='|模型输入�
 parser.add_argument('--batch', default=1, type=int, help='|输入图片批量|')
 parser.add_argument('--confidence_threshold', default=0.35, type=float, help='|置信筛选度阈值(>阈值留下)|')
 parser.add_argument('--iou_threshold', default=0.65, type=float, help='|iou阈值筛选阈值(<阈值留下)|')
-parser.add_argument('--device', default='cuda', type=str, help='|用CPU/GPU推理|')
-parser.add_argument('--num_worker', default=0, type=int, help='|CPU在处理数据时使用的进程数，0表示只有一个主进程，一般为0、2、4、8|')
+parser.add_argument('--device', default='cuda', type=str, help='|推理设备|')
+parser.add_argument('--num_worker', default=0, type=int, help='|CPU处理数据的进程数，0只有一个主进程，一般为0、2、4、8|')
 parser.add_argument('--float16', default=False, type=bool, help='|推理数据类型，要支持float16的GPU，False时为float32|')
 args, _ = parser.parse_known_args()  # 防止传入参数冲突，替代args = parser.parse_args()
 args.model_path = args.model_path.split('.')[0] + '.pt'
 # -------------------------------------------------------------------------------------------------------------------- #
 # 初步检查
-assert os.path.exists(args.model_path), f'没有找到模型{args.model_path}'
-assert os.path.exists(args.image_path), f'没有找到图片文件夹{args.image_path}'
+assert os.path.exists(args.model_path), f'! model_path不存在:{args.model_path} !'
+assert os.path.exists(args.data_path), f'! data_path不存在:{args.data_path} !'
 if args.float16:
     assert torch.cuda.is_available(), 'cuda不可用，因此无法使用float16'
 
