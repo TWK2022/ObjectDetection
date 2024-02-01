@@ -17,7 +17,7 @@
 >&emsp; &emsp; └── class.txt：所有的类别名称  
 ### 3，run.py
 >模型训练时运行该文件，argparse中有对每个参数的说明
-### 4，test_pt.py
+### 4，predict_pt.py
 >使用训练好的pt模型预测
 ### 5，export_onnx.py
 >将pt模型导出为onnx模型
