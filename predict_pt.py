@@ -75,7 +75,7 @@ def draw(image, frame, cls, name):  # 输入(x_min,y_min,w,h)真实坐标
     print(f'| {name}: save_{name} |')
 
 
-def test_pt(args):
+def predict_pt(args):
     # 加载模型
     model_dict = torch.load(args.model_path, map_location='cpu')
     model = model_dict['model']
@@ -131,4 +131,4 @@ class torch_dataset(torch.utils.data.Dataset):
 
 
 if __name__ == '__main__':
-    test_pt(args)
+    predict_pt(args)
