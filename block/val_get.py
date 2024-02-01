@@ -4,7 +4,7 @@ from model.layer import decode
 from block.metric_get import confidence_screen, nms, nms_tp_fn_fp
 
 
-def val_get(args, val_dataloader, model, loss, ema):
+def val_get(args, val_dataloader, model, loss, ema, data_len):
     with torch.no_grad():
         model = ema.ema if args.ema else model.eval()
         decode_model = decode(args.input_size)
@@ -15,7 +15,9 @@ def val_get(args, val_dataloader, model, loss, ema):
         nms_tp_all = 0
         nms_fp_all = 0
         nms_fn_all = 0
-        for index, (image_batch, true_batch, judge_batch, label_list) in enumerate(tqdm.tqdm(val_dataloader)):
+        tqdm_len = data_len // args.batch
+        tqdm_show = tqdm.tqdm(total=tqdm_len)
+        for index, (image_batch, true_batch, judge_batch, label_list) in enumerate(val_dataloader):
             image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到设备上
             for i in range(len(true_batch)):  # 将标签矩阵放到对应设备上
                 true_batch[i] = true_batch[i].to(args.device, non_blocking=args.latch)
@@ -47,6 +49,11 @@ def val_get(args, val_dataloader, model, loss, ema):
                 nms_tp_all += nms_tp
                 nms_fn_all += nms_fn
                 nms_fp_all += nms_fp
+            # tqdm
+            tqdm_show.set_postfix({'val_loss': loss_batch.item()})  # 添加显示
+            tqdm_show.update(1)  # 更新进度条
+        # tqdm
+        tqdm_show.close()
         # 计算平均损失
         val_loss /= index + 1
         val_frame_loss /= index + 1

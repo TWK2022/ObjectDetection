@@ -52,7 +52,7 @@ def train_get(args, data_dict, model_dict, loss):
         train_confidence_loss = 0  # 记录置信度框损失
         train_class_loss = 0  # 记录类别损失
         if args.local_rank == 0:  # tqdm
-            tqdm_show = tqdm.tqdm(total=step_epoch, mininterval=0.2)
+            tqdm_show = tqdm.tqdm(total=step_epoch)
         for index, (image_batch, true_batch, judge_batch, label_list) in enumerate(train_dataloader):
             if args.wandb and args.local_rank == 0 and len(wandb_image_list) < args.wandb_image_num:
                 wandb_image_batch = (image_batch * 255).cpu().numpy().astype(np.uint8).transpose(0, 2, 3, 1)
@@ -127,7 +127,7 @@ def train_get(args, data_dict, model_dict, loss):
         # 验证
         if args.local_rank == 0:  # 分布式时只验证一次
             val_loss, val_frame_loss, val_confidence_loss, val_class_loss, precision, recall, m_ap \
-                = val_get(args, val_dataloader, model, loss, ema)
+                = val_get(args, val_dataloader, model, loss, ema, len(data_dict['val']))
         # 保存
         if args.local_rank == 0:  # 分布式时只保存一次
             model_dict['model'] = model.module if args.distributed else model.eval()
