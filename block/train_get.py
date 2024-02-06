@@ -257,6 +257,28 @@ class torch_dataset(torch.utils.data.Dataset):
             judge_matrix_list[i] = judge_matrix
         return image, label_matrix_list, judge_matrix_list, label  # 真实坐标(Cx,Cy,w,h)
 
+    def collate_fn(self, getitem_list):  # 自定义__getitem__合并方式
+        image_list = []
+        label_matrix_list = [[] for _ in range(len(getitem_list[0][1]))]
+        judge_matrix_list = [[] for _ in range(len(getitem_list[0][2]))]
+        label_list = []
+        for i in range(len(getitem_list)):  # 遍历所有__getitem__
+            image = getitem_list[i][0]
+            label_matrix = getitem_list[i][1]
+            judge_matrix = getitem_list[i][2]
+            label = getitem_list[i][3]
+            image_list.append(image)
+            for j in range(len(label_matrix)):  # 遍历每个输出层
+                label_matrix_list[j].append(label_matrix[j])
+                judge_matrix_list[j].append(judge_matrix[j])
+            label_list.append(label)
+        # 合并
+        image_batch = torch.stack(image_list, dim=0)
+        for i in range(len(label_matrix_list)):
+            label_matrix_list[i] = torch.stack(label_matrix_list[i], dim=0)
+            judge_matrix_list[i] = torch.stack(judge_matrix_list[i], dim=0)
+        return image_batch, label_matrix_list, judge_matrix_list, label_list  # 均为(Cx,Cy,w,h)真实坐标
+
     def _mosaic(self, index_mix):  # 马赛克增强，合并后w,h不能小于screen
         x_center = int((torch.rand(1) * 0.4 + 0.3) * self.input_size)  # 0.3-0.7。四张图片合并的中心点
         y_center = int((torch.rand(1) * 0.4 + 0.3) * self.input_size)  # 0.3-0.7。四张图片合并的中心点
@@ -370,25 +392,3 @@ class torch_dataset(torch.utils.data.Dataset):
             x1, y1, x2, y2 = frame
             cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), color=(0, 255, 0), thickness=2)
         cv2.imwrite('save_check.jpg', image)
-
-    def collate_fn(self, getitem_list):  # 自定义__getitem__合并方式
-        image_list = []
-        label_matrix_list = [[] for _ in range(len(getitem_list[0][1]))]
-        judge_matrix_list = [[] for _ in range(len(getitem_list[0][2]))]
-        label_list = []
-        for i in range(len(getitem_list)):  # 遍历所有__getitem__
-            image = getitem_list[i][0]
-            label_matrix = getitem_list[i][1]
-            judge_matrix = getitem_list[i][2]
-            label = getitem_list[i][3]
-            image_list.append(image)
-            for j in range(len(label_matrix)):  # 遍历每个输出层
-                label_matrix_list[j].append(label_matrix[j])
-                judge_matrix_list[j].append(judge_matrix[j])
-            label_list.append(label)
-        # 合并
-        image_batch = torch.stack(image_list, dim=0)
-        for i in range(len(label_matrix_list)):
-            label_matrix_list[i] = torch.stack(label_matrix_list[i], dim=0)
-            judge_matrix_list[i] = torch.stack(judge_matrix_list[i], dim=0)
-        return image_batch, label_matrix_list, judge_matrix_list, label_list  # 均为(Cx,Cy,w,h)真实坐标
