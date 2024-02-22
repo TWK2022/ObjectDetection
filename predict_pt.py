@@ -9,7 +9,6 @@ import albumentations
 from model.layer import deploy
 
 # -------------------------------------------------------------------------------------------------------------------- #
-# 设置
 parser = argparse.ArgumentParser(description='|pt模型推理|')
 parser.add_argument('--model_path', default='best.pt', type=str, help='|pt模型位置|')
 parser.add_argument('--image_path', default='image', type=str, help='|图片文件夹位置|')
@@ -23,7 +22,6 @@ parser.add_argument('--float16', default=False, type=bool, help='|推理数据�
 args, _ = parser.parse_known_args()  # 防止传入参数冲突，替代args = parser.parse_args()
 args.model_path = args.model_path.split('.')[0] + '.pt'
 # -------------------------------------------------------------------------------------------------------------------- #
-# 初步检查
 assert os.path.exists(args.model_path), f'! model_path不存在:{args.model_path} !'
 assert os.path.exists(args.data_path), f'! data_path不存在:{args.data_path} !'
 if args.float16:
@@ -31,7 +29,6 @@ if args.float16:
 
 
 # -------------------------------------------------------------------------------------------------------------------- #
-# 程序
 def confidence_screen(pred, confidence_threshold):
     result = []
     for i in range(len(pred)):  # 对一张图片的每个输出层分别进行操作
