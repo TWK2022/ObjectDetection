@@ -15,7 +15,7 @@ def val_get(args, val_dataloader, model, loss, ema, data_len):
         nms_tp_all = 0
         nms_fp_all = 0
         nms_fn_all = 0
-        tqdm_len = data_len // args.batch * args.device_number
+        tqdm_len = (data_len - 1) // (args.batch // args.device_number) + 1
         tqdm_show = tqdm.tqdm(total=tqdm_len)
         for index, (image_batch, true_batch, judge_batch, label_list) in enumerate(val_dataloader):
             image_batch = image_batch.to(args.device, non_blocking=args.latch)  # 将输入数据放到设备上
