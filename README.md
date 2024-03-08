@@ -28,6 +28,4 @@
 ### 8，gunicorn_config.py
 >用gunicorn多进程启动flask服务：gunicorn -c gunicorn_config.py flask_start:app
 ### 其他
->github链接：https://github.com/TWK2022/ObjectDetection  
->学习笔记：https://github.com/TWK2022/notebook  
->邮箱：1024565378@qq.com  
+>学习笔记：https://github.com/TWK2022/notebook
