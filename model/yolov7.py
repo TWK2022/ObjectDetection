@@ -1,21 +1,20 @@
 # 根据yolov7改编:https://github.com/WongKinYiu/yolov7
 import torch
-from model.layer import cbs, elan, elan_h, mp, sppcspc, concat, head
+from model.layer import cbs, elan, elan_h, mp, sppcspc, concat, head, decode
 
 
 class yolov7(torch.nn.Module):
-    def __init__(self, args):
+    def __init__(self, args, config=None):
         super().__init__()
-        dim_dict = {'n': 8, 's': 16, 'm': 32, 'l': 64}
-        n_dict = {'n': 1, 's': 1, 'm': 2, 'l': 3}
+        dim_dict = {'s': 16, 'm': 32, 'l': 64}
+        n_dict = {'s': 1, 'm': 2, 'l': 3}
         dim = dim_dict[args.model_type]
         n = n_dict[args.model_type]
-        input_size = args.input_size
-        stride = (8, 16, 32)
-        self.output_size = [int(input_size // i) for i in stride]  # 每个输出层的尺寸，如(80,40,20)
+        self.output_size = args.output_size
         self.output_class = args.output_class
+        self.decode = decode(args)  # 输出解码
         # 网络结构
-        if not args.prune:  # 正常版本
+        if config is None:  # 正常版本
             self.l0 = cbs(3, dim, 3, 1)
             self.l1 = cbs(dim, 2 * dim, 3, 2)  # input_size/2
             self.l2 = cbs(2 * dim, 2 * dim, 3, 1)
@@ -54,7 +53,6 @@ class yolov7(torch.nn.Module):
             self.output1 = head(8 * dim, self.output_size[1], self.output_class)
             self.output2 = head(16 * dim, self.output_size[2], self.output_class)
         else:  # 剪枝版本
-            config = args.prune_num
             self.l0 = cbs(3, config[0], 1, 1)
             self.l1 = cbs(config[0], config[1], 3, 2)  # input_size/2
             self.l2 = cbs(config[1], config[2], 1, 1)
@@ -127,7 +125,8 @@ class yolov7(torch.nn.Module):
         x = self.l24([x, l11])
         x = self.l25(x)
         output2 = self.output2(x)
-        return [output0, output1, output2]
+        x = self.decode([output0, output1, output2])
+        return x
 
 
 if __name__ == '__main__':
@@ -135,12 +134,16 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('--prune', default=False, type=bool)
-    parser.add_argument('--model_type', default='n', type=str)
+    parser.add_argument('--model_type', default='s', type=str)
     parser.add_argument('--input_size', default=640, type=int)
     parser.add_argument('--output_class', default=1, type=int)
+    parser.add_argument('--output_size', default=(80, 40, 20), type=tuple)
+    parser.add_argument('--output_layer', default=(3, 3, 3), type=tuple)
+    parser.add_argument('--anchor', default=(((12, 16), (19, 36), (40, 28)), ((36, 75), (76, 55), (72, 146)),
+                                             ((142, 110), (192, 243), (459, 401))))
     args = parser.parse_args()
     model = yolov7(args)
     tensor = torch.rand(2, 3, args.input_size, args.input_size, dtype=torch.float32)
     pred = model(tensor)
     print(model)
-    print(pred[0].shape, pred[1].shape, pred[2].shape)
+    print(pred.shape)
