@@ -240,18 +240,18 @@ class sppcspc(torch.nn.Module):  # in_->out_，len->len
 
 
 class head(torch.nn.Module):  # in_->(batch, 3, output_size, output_size, 5+output_class))，len->len
-    def __init__(self, in_, output_size, output_class):
+    def __init__(self, in_, output_size, output_class, layer=3):
         super().__init__()
+        self.layer = layer
         self.output_size = output_size
         self.output_class = output_class
-        self.output = torch.nn.Conv2d(in_, 3 * (5 + output_class), kernel_size=1, stride=1, padding=0)
+        self.output = torch.nn.Conv2d(in_, layer * (5 + output_class), kernel_size=1, stride=1, padding=0)
 
     def forward(self, x):
-        x = self.output(x).reshape(-1, 3, self.output_size, self.output_size, 5 + self.output_class)  # 变形
+        x = self.output(x).reshape(x.shape[0], self.layer, self.output_size, self.output_size, 5 + self.output_class)
         return x
 
 
-# 参考yolox
 class split_head(torch.nn.Module):  # in_->(batch, 3, output_size, output_size, 5+output_class))，len->len
     def __init__(self, in_, output_size, output_class, config=None):
         super().__init__()
@@ -292,53 +292,44 @@ class split_head(torch.nn.Module):  # in_->(batch, 3, output_size, output_size, 
         return x
 
 
-class image_deal(torch.nn.Module):  # 归一化
-    def __init__(self):
+class decode(torch.nn.Module):  # (cx,cy,w,h,confidence...)原始输出->(cx,cy,w,h,confidence...)真实坐标
+    def __init__(self, args):
         super().__init__()
+        self.anchor = args.input_size * torch.tensor(args.anchor)
+        self.input_size = args.input_size
+        self.output_size = args.output_size
+        self.output_layer = args.output_layer
+        self.stride = [self.input_size / _ for _ in self.output_size]
+        self.sigmoid = torch.nn.Sigmoid()
 
     def forward(self, x):
-        x = x / 255
-        x = x.permute(0, 3, 1, 2)
+        grid = [torch.arange(_, device=x[0].device) for _ in self.output_size]
+        # 遍历每一个大层
+        x_decode = []
+        for index, layer in enumerate(x):
+            # 中心坐标[0-1]->[-0.5-1.5]->[-0.5*stride-1.5*stride]
+            layer = self.sigmoid(layer)  # 归一化
+            new_layer = layer.clone()  # 防止inplace丢失梯度
+            new_layer[..., 0] = (2 * layer[..., 0] - 0.5 + grid[index]) * self.stride[index]
+            new_layer[..., 1] = (2 * layer[..., 1] - 0.5 + grid[index].unsqueeze(1)) * self.stride[index]
+            # 遍历每一个大层中的小层
+            for index_ in range(self.output_layer[index]):  # [0-1]->[0-4*anchor]
+                new_layer[:, index_, ..., 2] = 4 * layer[:, index_, ..., 2] ** 2 * self.anchor[index][index_][0]
+                new_layer[:, index_, ..., 3] = 4 * layer[:, index_, ..., 3] ** 2 * self.anchor[index][index_][1]
+            x_decode.append(new_layer)
+        x_list = []
+        batch, _, _, _, number = x_decode[0].shape
+        for index in range(batch):  # 每个批量单独合并在一起
+            x_list.append(torch.concat([_[index].reshape(-1, number) for _ in x_decode], dim=0))
+        x = torch.stack(x_list, dim=0)
         return x
 
 
-class decode(torch.nn.Module):  # (Cx,Cy,w,h,confidence...)原始输出->(Cx,Cy,w,h,confidence...)真实坐标
-    def __init__(self, input_size):
-        super().__init__()
-        self.stride = (8, 16, 32)
-        output_size = [int(input_size // i) for i in self.stride]
-        self.anchor = (((12, 16), (19, 36), (40, 28)), ((36, 75), (76, 55), (72, 146)),
-                       ((142, 110), (192, 243), (459, 401)))
-        self.grid = [0, 0, 0]
-        for i in range(3):
-            self.grid[i] = torch.arange(output_size[i])
-        self.frame_sigmoid = torch.nn.Sigmoid()
-
-    def forward(self, output):
-        device = output[0].device
-        # 遍历每一个大层
-        for i in range(3):
-            self.grid[i] = self.grid[i].to(device)  # 放到对应的设备上
-            # 中心坐标[0-1]->[-0.5-1.5]->[-0.5*stride-80/40/20.5*stride]
-            output[i] = self.frame_sigmoid(output[i])  # 边框输出归一化
-            output[i][..., 0] = (2 * output[i][..., 0] - 0.5 + self.grid[i].unsqueeze(1)) * self.stride[i]
-            output[i][..., 1] = (2 * output[i][..., 1] - 0.5 + self.grid[i]) * self.stride[i]
-            # 遍历每一个大层中的小层
-            for j in range(3):
-                output[i][:, j, ..., 2] = 4 * output[i][:, j, ..., 2] ** 2 * self.anchor[i][j][0]  # [0-1]->[0-4*anchor]
-                output[i][:, j, ..., 3] = 4 * output[i][:, j, ..., 3] ** 2 * self.anchor[i][j][1]  # [0-1]->[0-4*anchor]
-        return output
-
-
 class deploy(torch.nn.Module):
-    def __init__(self, model, input_size):
+    def __init__(self, model):
         super().__init__()
-        self.image_deal = image_deal()
         self.model = model
-        self.decode = decode(input_size)
 
     def forward(self, x):
-        x = self.image_deal(x)
         x = self.model(x)
-        x = self.decode(x)
         return x
