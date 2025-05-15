@@ -211,12 +211,12 @@ class train_class:
                 class_loss += class_.item()
                 self.optimizer = self.optimizer_adjust(self.optimizer)  # 调整学习率
                 # wandb
-                if args.wandb and args.local_rank == 0 and epoch == 0 and len(self.wandb_image_list) < 16:
-                    for index, image in enumerate(wandb_image_batch):  # 遍历每一张图片
-                        frame = label_list[index][:, 0:4] / args.input_size  # (Cx,Cy,w,h)相对坐标
+                if args.local_rank == 0 and args.wandb and len(self.wandb_image_list) < self.wandb_image_number:
+                    for image, label in zip(wandb_image_batch, label_list):  # 遍历每一张图片
+                        frame = label[:, 0:4] / args.input_size  # (cx,cy,w,h)相对坐标
                         frame[:, 0:2] = frame[:, 0:2] - frame[:, 2:4] / 2
                         frame[:, 2:4] = frame[:, 0:2] + frame[:, 2:4]  # (x_min,y_min,x_max,y_max)相对坐标
-                        cls = torch.argmax(label_list[index][:, 5:], dim=1)
+                        cls = torch.argmax(label[:, 5:], dim=1)
                         box_data = []
                         for index_, frame_ in enumerate(frame):
                             class_id = cls[index_].item()
@@ -229,8 +229,7 @@ class train_class:
                         wandb_image = wandb.Image(image, boxes={"predictions": {"box_data": box_data,
                                                                                 'class_labels': self.wandb_class_name}})
                         self.wandb_image_list.append(wandb_image)
-                        if len(self.wandb_image_list) == self.wandb_image_number:
-                            break
+                    self.wandb_image_list = self.wandb_image_list[:self.wandb_image_number]
             # 计算平均损失
             train_loss /= index + 1
             frame_loss /= index + 1
