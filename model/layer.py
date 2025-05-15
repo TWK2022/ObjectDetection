@@ -28,54 +28,31 @@ class concat(torch.nn.Module):
 
 
 class residual(torch.nn.Module):  # in_->in_，len->len
+    config_len = '2'  # 参数层数
+
     def __init__(self, in_, config=None):
         super().__init__()
-        if not config:  # 正常版本
+        if config is None:  # 正常版本
             self.cbs0 = cbs(in_, in_, kernel_size=1, stride=1)
             self.cbs1 = cbs(in_, in_, kernel_size=3, stride=1)
-        else:  # 剪枝版本。len(config) = 2
+        else:  # 剪枝版本: len(config) = 2
             self.cbs0 = cbs(in_, config[0], kernel_size=1, stride=1)
-            self.cbs1 = cbs(config[0], config[1], kernel_size=3, stride=1)
+            self.cbs1 = cbs(config[0], in_, kernel_size=3, stride=1)
+            self.last_layer = in_  # 最后一层参数
 
     def forward(self, x):
         x0 = self.cbs0(x)
         x0 = self.cbs1(x0)
+        x = x + x0
         return x + x0
 
 
-class c3(torch.nn.Module):  # in_->out_，len->len
-    def __init__(self, in_, out_, n, config=None):
-        super().__init__()
-        if not config:  # 正常版本
-            self.cbs0 = cbs(in_, in_ // 2, kernel_size=1, stride=1)
-            self.sequential1 = torch.nn.Sequential(*(residual(in_ // 2) for _ in range(n)))
-            self.cbs2 = cbs(in_, in_ // 2, kernel_size=1, stride=1)
-            self.concat3 = concat(dim=1)
-            self.cbs4 = cbs(in_, out_, kernel_size=1, stride=1)
-        else:  # 剪枝版本。len(config) = 3 + 2 * n
-            self.cbs0 = cbs(in_, config[0], kernel_size=1, stride=1)
-            self.sequential1 = torch.nn.Sequential(
-                *(residual(config[0 + 2 * _] if _ == 0 else config[1 + 2 * _] + config[2 + 2 * _],
-                           config[1 + 2 * _:3 + 2 * _]) for _ in range(n)))
-            self.cbs2 = cbs(config[0], config[1 + 2 * n], kernel_size=1, stride=1)
-            self.concat3 = concat(dim=1)
-            self.cbs4 = cbs(config[0] + config[2 * n - 1] + config[2 * n] + config[1 + 2 * n], config[2 + 2 * n],
-                            kernel_size=1, stride=1)
-
-    def forward(self, x):
-        x0 = self.cbs0(x)
-        x1 = self.sequential1(x0)
-        x1 = x0 + x1
-        x2 = self.cbs2(x)
-        x = self.concat3([x1, x2])
-        x = self.cbs4(x)
-        return x
-
-
 class elan(torch.nn.Module):  # in_->out_，len->len
-    def __init__(self, in_, out_, n, config=None):
+    config_len = '3 + 2 * n'  # 参数层数
+
+    def __init__(self, in_, out_=None, n=1, config=None):
         super().__init__()
-        if not config:  # 正常版本
+        if config is None:  # 正常版本
             self.cbs0 = cbs(in_, out_ // 4, kernel_size=1, stride=1)
             self.cbs1 = cbs(in_, out_ // 4, kernel_size=1, stride=1)
             self.sequential2 = torch.nn.Sequential(
@@ -84,16 +61,17 @@ class elan(torch.nn.Module):  # in_->out_，len->len
                 *(cbs(out_ // 4, out_ // 4, kernel_size=3, stride=1) for _ in range(n)))
             self.concat4 = concat()
             self.cbs5 = cbs(out_, out_, kernel_size=1, stride=1)
-        else:  # 剪枝版本。len(config) = 3 + 2 * n
+        else:  # 剪枝版本: len(config) = 4 + 2 * n
             self.cbs0 = cbs(in_, config[0], kernel_size=1, stride=1)
             self.cbs1 = cbs(in_, config[1], kernel_size=1, stride=1)
             self.sequential2 = torch.nn.Sequential(
-                *(cbs(config[1 + _], config[2 + _], kernel_size=3, stride=1) for _ in range(n)))
+                *(cbs(config[1 + _], config[1 + _ + 1], kernel_size=3, stride=1) for _ in range(n)))
             self.sequential3 = torch.nn.Sequential(
-                *(cbs(config[1 + n + _], config[2 + n + _], kernel_size=3, stride=1) for _ in range(n)))
+                *(cbs(config[1 + n + _], config[1 + n + _ + 1], kernel_size=3, stride=1) for _ in range(n)))
             self.concat4 = concat()
             self.cbs5 = cbs(config[0] + config[1] + config[1 + n] + config[1 + 2 * n], config[2 + 2 * n],
                             kernel_size=1, stride=1)
+            self.last_layer = config[2 + 2 * n]  # 最后一层参数
 
     def forward(self, x):
         x0 = self.cbs0(x)
@@ -106,7 +84,9 @@ class elan(torch.nn.Module):  # in_->out_，len->len
 
 
 class elan_h(torch.nn.Module):  # in_->out_，len->len
-    def __init__(self, in_, out_, config=None):
+    config_len = '7'  # 参数层数
+
+    def __init__(self, in_, out_=None, config=None):
         super().__init__()
         if not config:  # 正常版本
             self.cbs0 = cbs(in_, in_ // 2, kernel_size=1, stride=1)
@@ -117,7 +97,7 @@ class elan_h(torch.nn.Module):  # in_->out_，len->len
             self.cbs5 = cbs(in_ // 4, in_ // 4, kernel_size=3, stride=1)
             self.concat6 = concat()
             self.cbs7 = cbs(2 * in_, out_, kernel_size=1, stride=1)
-        else:  # 剪枝版本。len(config) = 7
+        else:  # 剪枝版本: len(config) = 7
             self.cbs0 = cbs(in_, config[0], kernel_size=1, stride=1)
             self.cbs1 = cbs(in_, config[1], kernel_size=1, stride=1)
             self.cbs2 = cbs(config[1], config[2], kernel_size=3, stride=1)
@@ -127,6 +107,7 @@ class elan_h(torch.nn.Module):  # in_->out_，len->len
             self.concat6 = concat()
             self.cbs7 = cbs(config[0] + config[1] + config[2] + config[3] + config[4] + config[5], config[6],
                             kernel_size=1, stride=1)
+            self.last_layer = config[6]  # 最后一层参数
 
     def forward(self, x):
         x0 = self.cbs0(x)
@@ -141,20 +122,23 @@ class elan_h(torch.nn.Module):  # in_->out_，len->len
 
 
 class mp(torch.nn.Module):  # in_->out_，len->len//2
-    def __init__(self, in_, out_, config=None):
+    config_len = '3'  # 参数层数
+
+    def __init__(self, in_, out_=None, config=None):
         super().__init__()
-        if not config:  # 正常版本
+        if config is None:  # 正常版本
             self.maxpool0 = torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1)
             self.cbs1 = cbs(in_, out_ // 2, 1, 1)
             self.cbs2 = cbs(in_, out_ // 2, 1, 1)
             self.cbs3 = cbs(out_ // 2, out_ // 2, 3, 2)
             self.concat4 = concat(dim=1)
-        else:  # 剪枝版本。len(config) = 3
+        else:  # 剪枝版本: len(config) = 3
             self.maxpool0 = torch.nn.MaxPool2d(kernel_size=2, stride=2, padding=0, dilation=1)
             self.cbs1 = cbs(in_, config[0], 1, 1)
             self.cbs2 = cbs(in_, config[1], 1, 1)
             self.cbs3 = cbs(config[1], config[2], 3, 2)
             self.concat4 = concat(dim=1)
+            self.last_layer = config[0] + config[2]  # 最后一层参数
 
     def forward(self, x):
         x0 = self.maxpool0(x)
@@ -166,22 +150,25 @@ class mp(torch.nn.Module):  # in_->out_，len->len//2
 
 
 class sppf(torch.nn.Module):  # in_->out_，len->len
-    def __init__(self, in_, out_, config=None):
+    config_len = '2'  # 参数层数
+
+    def __init__(self, in_, out_=None, config=None):
         super().__init__()
-        if not config:  # 正常版本
+        if config is None:  # 正常版本
             self.cbs0 = cbs(in_, in_ // 2, kernel_size=1, stride=1)
             self.MaxPool2d1 = torch.nn.MaxPool2d(kernel_size=5, stride=1, padding=2, dilation=1)
             self.MaxPool2d2 = torch.nn.MaxPool2d(kernel_size=9, stride=1, padding=4, dilation=1)
             self.MaxPool2d3 = torch.nn.MaxPool2d(kernel_size=13, stride=1, padding=6, dilation=1)
             self.concat4 = concat(dim=1)
             self.cbs5 = cbs(2 * in_, out_, kernel_size=1, stride=1)
-        else:  # 剪枝版本。len(config) = 2
+        else:  # 剪枝版本: len(config) = 2
             self.cbs0 = cbs(in_, config[0], kernel_size=1, stride=1)
             self.MaxPool2d1 = torch.nn.MaxPool2d(kernel_size=5, stride=1, padding=2, dilation=1)
             self.MaxPool2d2 = torch.nn.MaxPool2d(kernel_size=9, stride=1, padding=4, dilation=1)
             self.MaxPool2d3 = torch.nn.MaxPool2d(kernel_size=13, stride=1, padding=6, dilation=1)
             self.concat4 = concat(dim=1)
             self.cbs5 = cbs(4 * config[0], config[1], kernel_size=1, stride=1)
+            self.last_layer = config[1]  # 最后一层参数
 
     def forward(self, x):
         x = self.cbs0(x)
@@ -194,9 +181,11 @@ class sppf(torch.nn.Module):  # in_->out_，len->len
 
 
 class sppcspc(torch.nn.Module):  # in_->out_，len->len
-    def __init__(self, in_, out_, config=None):
+    config_len = '7'  # 参数层数
+
+    def __init__(self, in_, out_=None, config=None):
         super().__init__()
-        if not config:  # 正常版本
+        if config is None:  # 正常版本
             self.cbs0 = cbs(in_, in_ // 2, kernel_size=1, stride=1)
             self.cbs1 = cbs(in_, in_ // 2, kernel_size=1, stride=1)
             self.cbs2 = cbs(in_ // 2, in_ // 2, kernel_size=3, stride=1)
@@ -209,7 +198,7 @@ class sppcspc(torch.nn.Module):  # in_->out_，len->len
             self.cbs9 = cbs(in_ // 2, in_ // 2, kernel_size=3, stride=1)
             self.concat10 = concat(dim=1)
             self.cbs11 = cbs(in_, out_, kernel_size=1, stride=1)
-        else:  # 剪枝版本。len(config) = 7
+        else:  # 剪枝版本: len(config) = 7
             self.cbs0 = cbs(in_, config[0], kernel_size=1, stride=1)
             self.cbs1 = cbs(in_, config[1], kernel_size=1, stride=1)
             self.cbs2 = cbs(config[1], config[2], kernel_size=3, stride=1)
@@ -222,6 +211,7 @@ class sppcspc(torch.nn.Module):  # in_->out_，len->len
             self.cbs9 = cbs(config[4], config[5], kernel_size=3, stride=1)
             self.concat10 = concat(dim=1)
             self.cbs11 = cbs(config[0] + config[5], config[6], kernel_size=1, stride=1)
+            self.last_layer = config[6]  # 最后一层参数
 
     def forward(self, x):
         x0 = self.cbs0(x)
@@ -268,7 +258,7 @@ class split_head(torch.nn.Module):  # in_->(batch, 3, output_size, output_size, 
             self.Conv2d6 = torch.nn.Conv2d(out_, 3, kernel_size=1, stride=1, padding=0)
             self.Conv2d7 = torch.nn.Conv2d(out_, 3 * self.output_class, kernel_size=1, stride=1, padding=0)
             self.concat8 = concat(4)
-        else:  # 剪枝版本。len(config) = 8
+        else:  # 剪枝版本: len(config) = 8
             self.cbs0 = cbs(in_, config[0], kernel_size=1, stride=1)
             self.cbs1 = cbs(config[0], config[1], kernel_size=1, stride=1)
             self.cbs2 = cbs(config[1], config[2], kernel_size=1, stride=1)
@@ -289,6 +279,30 @@ class split_head(torch.nn.Module):  # in_->(batch, 3, output_size, output_size, 
         x3 = self.Conv2d6(x0).reshape(-1, 3, self.output_size, self.output_size, 1)  # 变形
         x4 = self.Conv2d7(x1).reshape(-1, 3, self.output_size, self.output_size, self.output_class)  # 变形
         x = self.concat8([x2, x3, x4])
+        return x
+
+
+class cls_head(torch.nn.Module):
+    def __init__(self, in_, out_):
+        super().__init__()
+        self.avgpool0 = torch.nn.AdaptiveAvgPool2d(1)
+        self.flatten1 = torch.nn.Flatten()
+        self.dropout2 = torch.nn.Dropout(0.2)
+        self.linear3 = torch.nn.Linear(in_, in_ // 2)
+        self.silu4 = torch.nn.SiLU()
+        self.dropout5 = torch.nn.Dropout(0.2)
+        self.linear6 = torch.nn.Linear(in_ // 2, out_)
+        self.sigmoid7 = torch.nn.Sigmoid()
+
+    def forward(self, x):
+        x = self.avgpool0(x)
+        x = self.flatten1(x)
+        x = self.dropout2(x)
+        x = self.linear3(x)
+        x = self.silu4(x)
+        x = self.dropout5(x)
+        x = self.linear6(x)
+        x = self.sigmoid7(x)
         return x
 
 
