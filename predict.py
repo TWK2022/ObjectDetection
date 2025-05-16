@@ -59,6 +59,7 @@ class predict_class:
                 output = self.model(tensor).detach().cpu().numpy()[0]
             output = self.decode(output)
             result.append(len(output))
+            image = self.transform(image=image)['image']  # 缩放和填充图片
             self.draw_image(image, output[:, 0:4], save_path=f'predict_{os.path.basename(path)}')
         print(result)
 
