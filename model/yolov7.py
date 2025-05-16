@@ -38,55 +38,55 @@ class yolov7(torch.nn.Module):
             self.upsample17 = torch.nn.Upsample(scale_factor=2)  # input_size/8
             self.l6_add = cbs(16 * dim, 4 * dim, 1, 1)
             self.concat18 = concat(1)
-            self.elan_h19 = elan_h(8 * dim, 4 * dim)  # 接output0
+            self.elan_h19 = elan_h(8 * dim, 4 * dim)  # 接head0
             # -------------------- #
             self.mp20 = mp(4 * dim, 8 * dim)
             self.concat21 = concat(1)
-            self.elan_h22 = elan_h(16 * dim, 8 * dim)  # 接output1
+            self.elan_h22 = elan_h(16 * dim, 8 * dim)  # 接head1
             # -------------------- #
             self.mp23 = mp(8 * dim, 16 * dim)
             self.concat24 = concat(1)
-            self.elan_h25 = elan_h(32 * dim, 16 * dim)  # 接output2
+            self.elan_h25 = elan_h(32 * dim, 16 * dim)  # 接head2
             # -------------------- #
             self.head0 = head(4 * dim, self.output_size[0], self.output_class)
             self.head1 = head(8 * dim, self.output_size[1], self.output_class)
             self.head2 = head(16 * dim, self.output_size[2], self.output_class)
         else:  # 剪枝版本
-            self.cbs0 = cbs(3, config[0], 1, 1)
-            self.cbs1 = cbs(config[0], config[1], 3, 2)  # input_size/2
-            self.cbs2 = cbs(config[1], config[2], 1, 1)
-            self.cbs3 = cbs(config[2], config[3], 3, 2)  # input_size/4
-            self.elan4 = elan(config[3], None, n, config[4:7 + 2 * n])
-            self.mp5 = mp(config[6 + 2 * n], None, config[7 + 2 * n:10 + 2 * n])  # input_size/8
-            self.elan6 = elan(config[7 + 2 * n] + config[9 + 2 * n], None, n, config[10 + 2 * n:13 + 4 * n])
-            self.mp7 = mp(config[12 + 4 * n], None, config[13 + 4 * n:16 + 4 * n])  # input_size/16
-            self.elan8 = elan(config[13 + 4 * n] + config[15 + 4 * n], None, n, config[16 + 4 * n:19 + 6 * n])
-            self.mp9 = mp(config[18 + 6 * n], None, config[19 + 6 * n:22 + 6 * n])  # input_size/32
-            self.elan10 = elan(config[19 + 6 * n] + config[21 + 6 * n], None, n, config[22 + 6 * n:25 + 8 * n])
-            self.sppcspc11 = sppcspc(config[24 + 8 * n], None, config[25 + 8 * n:32 + 8 * n])
+            self.cbs0 = cbs(3, config[0], 3, 1)
+            self.cbs1 = cbs(config[0], config[1], 3, 2)
+            self.cbs2 = cbs(config[1], config[2], 3, 1)
+            self.cbs3 = cbs(config[2], config[3], 3, 2)
+            self.elan4 = elan(config[3], n=n, config=config[4:7 + 2 * n])
+            self.mp5 = mp(config[6 + 2 * n], config=config[7 + 2 * n:10 + 2 * n])
+            self.elan6 = elan(config[7 + 2 * n] + config[9 + 2 * n], n=n, config=config[10 + 2 * n:13 + 4 * n])
+            self.mp7 = mp(config[12 + 4 * n], config=config[13 + 4 * n:16 + 4 * n])
+            self.elan8 = elan(config[13 + 4 * n] + config[15 + 4 * n], n=n, config=config[16 + 4 * n:19 + 6 * n])
+            self.mp9 = mp(config[18 + 6 * n], config=config[19 + 6 * n:22 + 6 * n])
+            self.elan10 = elan(config[19 + 6 * n] + config[21 + 6 * n], n=n, config=config[22 + 6 * n:25 + 8 * n])
+            self.sppcspc11 = sppcspc(config[24 + 8 * n], config=config[25 + 8 * n:32 + 8 * n])
             self.cbs12 = cbs(config[31 + 8 * n], config[32 + 8 * n], 1, 1)
             # -------------------- #
-            self.upsample13 = torch.nn.Upsample(scale_factor=2)  # input_size/16
+            self.upsample13 = torch.nn.Upsample(scale_factor=2)
             self.l8_add = cbs(config[18 + 6 * n], config[33 + 8 * n], 1, 1)
             self.concat14 = concat(dim=1)
-            self.elan_h15 = elan_h(config[32 + 8 * n] + config[33 + 8 * n], None, config[34 + 8 * n:41 + 8 * n])
+            self.elan_h15 = elan_h(config[32 + 8 * n] + config[33 + 8 * n], config=config[34 + 8 * n:41 + 8 * n])
             self.cbs16 = cbs(config[40 + 8 * n], config[41 + 8 * n], 1, 1)
             # -------------------- #
-            self.upsample17 = torch.nn.Upsample(scale_factor=2)  # input_size/8
+            self.upsample17 = torch.nn.Upsample(scale_factor=2)
             self.l6_add = cbs(config[12 + 4 * n], config[42 + 8 * n], 1, 1)
             self.concat18 = concat(dim=1)
-            self.elan_h19 = elan_h(config[41 + 8 * n] + config[42 + 8 * n], None,
-                                   config[43 + 8 * n:50 + 8 * n])  # 接output0
+            self.elan_h19 = elan_h(config[41 + 8 * n] + config[42 + 8 * n],
+                                   config=config[43 + 8 * n:50 + 8 * n])
             # -------------------- #
-            self.mp20 = mp(config[49 + 8 * n], None, config[50 + 8 * n:53 + 8 * n])
+            self.mp20 = mp(config[49 + 8 * n], config=config[50 + 8 * n:53 + 8 * n])
             self.concat21 = concat(dim=1)
-            self.elan_h22 = elan_h(config[40 + 8 * n] + config[50 + 8 * n] + config[52 + 8 * n], None,
-                                   config[53 + 8 * n:60 + 8 * n])  # 接output1
+            self.elan_h22 = elan_h(config[40 + 8 * n] + config[50 + 8 * n] + config[52 + 8 * n],
+                                   config=config[53 + 8 * n:60 + 8 * n])
             # -------------------- #
-            self.mp23 = mp(config[59 + 8 * n], None, config[60 + 8 * n:63 + 8 * n])
+            self.mp23 = mp(config[59 + 8 * n], config=config[60 + 8 * n:63 + 8 * n])
             self.concat24 = concat(dim=1)
-            self.elan_h25 = elan_h(config[31 + 8 * n] + config[60 + 8 * n] + config[62 + 8 * n], None,
-                                   config[63 + 8 * n:70 + 8 * n])  # 接output2
+            self.elan_h25 = elan_h(config[31 + 8 * n] + config[60 + 8 * n] + config[62 + 8 * n],
+                                   config=config[63 + 8 * n:70 + 8 * n])
             # -------------------- #
             self.head0 = head(config[49 + 8 * n], self.output_size[0], self.output_class)
             self.head1 = head(config[59 + 8 * n], self.output_size[1], self.output_class)
