@@ -446,7 +446,7 @@ class loss_class(object):
 
 
 class focal_loss(torch.nn.Module):  # 聚焦损失
-    def __init__(self, alpha=5, gamma=2):
+    def __init__(self, alpha=10, gamma=2):
         super().__init__()
         self.alpha = alpha
         self.gamma = gamma
