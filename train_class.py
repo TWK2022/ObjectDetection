@@ -378,35 +378,30 @@ class train_class:
         cv2.imwrite('check_draw.jpg', image)
 
 
-class loss_class(object):
+class loss_class():
     def __init__(self, args):
         self.device = args.device
         self.input_size = args.input_size
         self.output_size = args.output_size
         self.label_smooth = args.label_smooth
         self.frame_loss = self.ciou  # 边框损失函数
-        self.confidence_p_loss = focal_loss()  # 置信度正样本损失函数
-        self.confidence_n_loss = focal_loss()  # 置信度负样本损失函数
+        self.confidence_loss = focal_loss()  # 置信度损失函数
         if args.output_class == 1:  # 分类损失函数
             self.class_loss = torch.nn.BCELoss()
         else:
             self.class_loss = torch.nn.CrossEntropyLoss()
 
-    def __call__(self, pred, screen_list, label_expend):  # pred与true的形式对应，screen为True和False组成的矩阵，True代表该位置有标签需要预测
+    def __call__(self, pred, screen_list, label_expend):
         pred_need = []  # 有标签对应的区域
-        pred_other = []  # 无标签对应的区域
-        for pred_, screen in zip(pred, screen_list):
-            other = torch.ones(len(pred_), dtype=torch.bool, device=self.device)
-            other[screen] = False
-            pred_need.append(pred_[screen])
-            pred_other.append(pred_[other])
+        confidence_label = torch.full_like(pred[:, :, 4], self.label_smooth, device=pred.device)  # 置信度标签
+        for index, pred_ in enumerate(pred):
+            pred_need.append(pred_[screen_list[index]])
+            one = confidence_label[index]
+            one[screen_list[index]] = 1 - self.label_smooth
+            confidence_label[index] = one
         pred_need = torch.concat(pred_need)
-        pred_other = torch.concat(pred_other)
         frame_loss = 1 - torch.mean(self.frame_loss(pred_need[:, 0:4], label_expend[:, 0:4]))  # 边框损失(只计算需要的)
-        confidence_p_loss = self.confidence_p_loss(pred_need[:, 4], label_expend[:, 4])  # 置信度正样本损失
-        confidence_n_loss = self.confidence_n_loss(
-            pred_other[:, 4], torch.full_like(pred_other[:, 4], self.label_smooth))  # 置信度负样本损失
-        confidence_loss = 0.2 * confidence_p_loss + 0.8 * confidence_n_loss
+        confidence_loss = self.confidence_loss(pred[:, :, 4], confidence_label)  # 置信度损失(计算所有的)
         class_loss = self.class_loss(pred_need[:, 5:], label_expend[:, 5:])  # 分类损失(只计算需要的)
         loss = frame_loss + confidence_loss + class_loss
         return loss, frame_loss, confidence_loss, class_loss
