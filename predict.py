@@ -58,9 +58,13 @@ class predict_class:
             with torch.no_grad():
                 output = self.model(tensor).detach().cpu().numpy()[0]
             output = self.decode(output)
-            result.append(len(output))
-            image = self.transform(image=image)['image']  # 缩放和填充图片
-            self.draw_image(image, output[:, 0:4], save_path=f'predict_{os.path.basename(path)}')
+            if output is not None:
+                result.append(len(output))
+                image = self.transform(image=image)['image']  # 缩放和填充图片
+                self.draw_image(image, output[:, 0:4], save_path=f'predict_{os.path.basename(path)}')
+            else:
+                result.append(0)
+                cv2.imwrite(f'predict_{os.path.basename(path)}', image)
         print(result)
 
     def image_process(self, image):
@@ -76,7 +80,7 @@ class predict_class:
         pred = pred[np.where((pred[:, 0] > 0) & (pred[:, 1] > 0))]  # 去除负值
         if len(pred) == 0:  # 没有预测值
             return None
-        pred = pred[np.argsort(pred[:, 4])[::-1]]  # 按置信度从大到小排序
+        pred = pred[np.argsort(pred[:, 4])[::-1]].astype(np.float32)  # 按置信度从大到小排序，提高精度防止数据溢出
         result = []
         while len(pred):
             result.append(pred[0])
