@@ -445,11 +445,11 @@ class loss_class():
 
 
 class focal_loss(torch.nn.Module):  # 聚焦损失
-    def __init__(self, alpha=0.25, gamma=2, scale=100):
+    def __init__(self, alpha=0.25, gamma=2, scale=200):
         super().__init__()
         self.alpha = alpha  # 增大更关注正样本
         self.gamma = gamma  # 增大更关注难样本
-        self.scale = scale
+        self.scale = scale  # 整体提高置信度损失权重
 
     def forward(self, pred, label):
         bce_loss = torch.nn.functional.binary_cross_entropy(pred, label, reduction='none')
