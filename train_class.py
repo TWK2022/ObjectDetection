@@ -378,36 +378,35 @@ class train_class:
         cv2.imwrite('check_draw.jpg', image)
 
 
-class loss_class(object):
+class loss_class():
     def __init__(self, args):
         self.device = args.device
         self.input_size = args.input_size
         self.output_size = args.output_size
         self.label_smooth = args.label_smooth
         self.frame_loss = self.ciou  # 边框损失函数
-        self.confidence_p_loss = focal_loss()  # 置信度正样本损失函数
-        self.confidence_n_loss = focal_loss()  # 置信度负样本损失函数
+        self.confidence_loss = focal_loss()  # 置信度损失函数
         if args.output_class == 1:  # 分类损失函数
             self.class_loss = torch.nn.BCELoss()
         else:
             self.class_loss = torch.nn.CrossEntropyLoss()
 
-    def __call__(self, pred, screen_list, label_expend):  # pred与true的形式对应，screen为True和False组成的矩阵，True代表该位置有标签需要预测
+    def __call__(self, pred, screen_list, label_expend):
         pred_need = []  # 有标签对应的区域
-        pred_other = []  # 无标签对应的区域
-        for pred_, screen in zip(pred, screen_list):
-            other = torch.ones(len(pred_), dtype=torch.bool, device=self.device)
-            other[screen] = False
+        confidence_label = torch.full_like(pred[:, :, 4], self.label_smooth, device=pred.device)  # 置信度标签
+        for index, (pred_, screen) in enumerate(zip(pred, screen_list)):
             pred_need.append(pred_[screen])
-            pred_other.append(pred_[other])
+            one = confidence_label[index]
+            one[screen] = 1 - self.label_smooth
+            confidence_label[index] = one
         pred_need = torch.concat(pred_need)
-        pred_other = torch.concat(pred_other)
-        frame_loss = 1 - torch.mean(self.frame_loss(pred_need[:, 0:4], label_expend[:, 0:4]))  # 边框损失(只计算需要的)
-        confidence_p_loss = self.confidence_p_loss(pred_need[:, 4], label_expend[:, 4])  # 置信度正样本损失
-        confidence_n_loss = self.confidence_n_loss(
-            pred_other[:, 4], torch.full_like(pred_other[:, 4], self.label_smooth))  # 置信度负样本损失
-        confidence_loss = 0.2 * confidence_p_loss + 0.8 * confidence_n_loss
-        class_loss = self.class_loss(pred_need[:, 5:], label_expend[:, 5:])  # 分类损失(只计算需要的)
+        confidence_loss = self.confidence_loss(pred[:, :, 4], confidence_label)  # 置信度损失(计算所有的)
+        if len(pred_need) == 0:  # 没有标签
+            frame_loss = torch.tensor(1)
+            class_loss = torch.tensor(1)
+        else:
+            frame_loss = 1 - torch.mean(self.frame_loss(pred_need[:, 0:4], label_expend[:, 0:4]))  # 边框损失(只计算需要的)
+            class_loss = self.class_loss(pred_need[:, 5:], label_expend[:, 5:])  # 分类损失(只计算需要的)
         loss = frame_loss + confidence_loss + class_loss
         return loss, frame_loss, confidence_loss, class_loss
 
@@ -446,14 +445,16 @@ class loss_class(object):
 
 
 class focal_loss(torch.nn.Module):  # 聚焦损失
-    def __init__(self, alpha=5, gamma=2):
+    def __init__(self, alpha=0.25, gamma=2, scale=200):
         super().__init__()
-        self.alpha = alpha
-        self.gamma = gamma
+        self.alpha = alpha  # 增大更关注正样本
+        self.gamma = gamma  # 增大更关注难样本
+        self.scale = scale  # 整体提高置信度损失权重
 
     def forward(self, pred, label):
         bce_loss = torch.nn.functional.binary_cross_entropy(pred, label, reduction='none')
-        loss = torch.mean(self.alpha * (1 - torch.exp(-bce_loss)) ** self.gamma * bce_loss)
+        alpha = self.alpha * label + (1 - self.alpha) * (1 - label)
+        loss = self.scale * torch.mean(alpha * (1 - torch.exp(-bce_loss)) ** self.gamma * bce_loss)
         return loss
 
 
@@ -541,11 +542,19 @@ class torch_dataset(torch.utils.data.Dataset):
             image = cv2.imdecode(np.fromfile(self.data[index][0], dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片
             with open(self.data[index][1], 'r', encoding='utf-8') as f:
                 label = np.array([_.strip().split() for _ in f.readlines()], dtype=np.float32)  # 相对坐标(类别号,cx,cy,w,h)
-            image, frame = self._resize(image.astype(np.uint8), label[:, 1:])  # 缩放和填充图片，相对坐标(cx,cy,w,h)变为真实坐标
-            cls_all = label[:, 0]  # 类别号
+            if len(label) > 0:  # 有标签
+                image, frame = self._resize(image.astype(np.uint8), label[:, 1:])  # 缩放和填充图片，相对坐标(cx,cy,w,h)变为真实坐标
+                cls_all = label[:, 0]  # 类别号
+            else:
+                image = np.resize(image.astype(np.uint8), (self.input_size, self.input_size, 3))
+                frame = None
         image = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_BGR2RGB)  # 转为RGB通道
         # self._draw_image(image, frame)  # 画图检查
         image = (torch.tensor(image, dtype=torch.float32) / 255).permute(2, 0, 1)
+        if frame is None:
+            label_screen = torch.tensor([], dtype=torch.int32)
+            label_expend = torch.tensor([], dtype=torch.int32)
+            return image, label_screen, label_expend, label
         # 原始标签
         label_number = len(frame)  # 标签数量
         frame = torch.tensor(frame, dtype=torch.float32)  # 边框
@@ -683,6 +692,8 @@ class torch_dataset(torch.utils.data.Dataset):
                                True, False)  # w,h不能小于screen
         frame_all = frame_all[screen_list]
         cls_all = cls_all[screen_list]
+        if len(frame_all) == 0:  # 没有标签
+            frame_all = None
         return image_merge, frame_all, cls_all
 
     def _resize(self, image, frame):  # 将图片四周填充变为正方形，frame输入输出都为[[cx,cy,w,h]...](相对原图片的比例值)
