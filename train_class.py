@@ -205,7 +205,7 @@ class train_class:
                 # tqdm
                 if args.local_rank == 0 and args.tqdm:
                     tqdm_show.set_postfix({'loss': loss_batch.item()})
-                    tqdm_show.update(args.device_number)
+                    tqdm_show.update(args.device_number * args.batch)
                 # wandb
                 if args.local_rank == 0 and args.wandb and len(self.wandb_image_list) < self.wandb_image_number:
                     for image, label in zip(wandb_image_batch, label_list):  # 遍历每一张图片
