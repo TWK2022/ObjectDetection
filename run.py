@@ -17,6 +17,7 @@ from train_class import train_class
 # -------------------------------------------------------------------------------------------------------------------- #
 parser = argparse.ArgumentParser(description='|目标检测|')
 parser.add_argument('--log', default=True, type=bool, help='|日志|')
+parser.add_argument('--tqdm', default=True, type=bool, help='|每轮进度条|')
 parser.add_argument('--print_info', default=True, type=bool, help='|打印信息|')
 parser.add_argument('--wandb', default=False, type=bool, help='|wandb可视化|')
 parser.add_argument('--data_path', default='dataset', type=str, help='|数据位置|')
@@ -26,7 +27,7 @@ parser.add_argument('--prune_weight_path', default='prune_source.pt', type=str, 
 parser.add_argument('--prune_ratio', default=0.8, type=float, help='|剪枝保留比例|')
 parser.add_argument('--model', default='yolov7', type=str, help='|模型选择|')
 parser.add_argument('--model_type', default='s', type=str, help='|模型型号|')
-parser.add_argument('--save_epoch', default=10, type=int, help='|每x轮和最后一轮保存模型|')
+parser.add_argument('--save_epoch', default=5, type=int, help='|每x轮和最后一轮保存模型|')
 parser.add_argument('--save_path', default='last.pt', type=str, help='|保存模型|')
 parser.add_argument('--save_best', default='best.pt', type=str, help='|保存最佳模型|')
 parser.add_argument('--input_size', default=640, type=int, help='|输入图片大小|')

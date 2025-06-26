@@ -2,6 +2,7 @@ import os
 import cv2
 import math
 import copy
+import tqdm
 import wandb
 import torch
 import logging
@@ -173,6 +174,8 @@ class train_class:
             confidence_loss = 0
             class_loss = 0
             self.train_dataset.epoch_update(epoch)
+            if args.local_rank == 0 and args.tqdm:
+                tqdm_show = tqdm.tqdm(iterable=None, total=len(self.data_dict['train']), mininterval=0.1)
             for index, (image_batch, screen_list, label_expend, label_list) in enumerate(self.train_dataloader):
                 if args.local_rank == 0 and args.wandb and len(self.wandb_image_list) < self.wandb_image_number:
                     wandb_image_batch = (image_batch * 255).cpu().numpy().astype(np.uint8).transpose(0, 2, 3, 1)
@@ -199,6 +202,10 @@ class train_class:
                 confidence_loss += confidence_.item()
                 class_loss += class_.item()
                 self.optimizer = self.optimizer_adjust(self.optimizer)  # 调整学习率
+                # tqdm
+                if args.local_rank == 0 and args.tqdm:
+                    tqdm_show.set_postfix({'loss': loss_batch.item()})
+                    tqdm_show.update(args.device_number)
                 # wandb
                 if args.local_rank == 0 and args.wandb and len(self.wandb_image_list) < self.wandb_image_number:
                     for image, label in zip(wandb_image_batch, label_list):  # 遍历每一张图片
