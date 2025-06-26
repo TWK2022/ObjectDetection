@@ -42,7 +42,7 @@ parser.add_argument('--regularization', default='L2', type=str, help='|正则化
 parser.add_argument('--r_value', default=0.0005, type=float, help='|正则化权重系数，基准为0.0005|')
 parser.add_argument('--device', default='cuda', type=str, help='|设备|')
 parser.add_argument('--latch', default=True, type=bool, help='|模型和数据是否为锁存|')
-parser.add_argument('--num_worker', default=0, type=int, help='|cpu处理数据进程数，0为一个主进程，一般为0、2、4、8|')
+parser.add_argument('--num_worker', default=0, type=int, help='|cpu处理数据进程数，0为一个主进程，一般为0、8、16|')
 parser.add_argument('--ema', default=True, type=bool, help='|平均指数移动(EMA)调整参数|')
 parser.add_argument('--amp', default=True, type=bool, help='|混合float16精度训练，cpu时不可用，出现nan可能与gpu有关|')
 parser.add_argument('--distributed', default=False, type=bool, help='|单机多卡分布式训练，分布式训练时batch为总batch|')

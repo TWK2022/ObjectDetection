@@ -287,6 +287,8 @@ class train_class:
             tp_all = 0
             fp_all = 0
             fn_all = 0
+            if args.tqdm:
+                tqdm_show = tqdm.tqdm(iterable=None, total=len(self.data_dict['val']), mininterval=0.1)
             for index, (image_batch, screen_list, label_expend, label_list) in enumerate(self.val_dataloader):
                 image_batch = image_batch.to(args.device, non_blocking=args.latch)
                 screen_list = [_.to(args.device, non_blocking=args.latch) for _ in screen_list]
@@ -300,6 +302,9 @@ class train_class:
                 tp_all += tp
                 fn_all += fn
                 fp_all += fp
+                if args.tqdm:
+                    tqdm_show.set_postfix({'loss': loss_batch.item()})
+                    tqdm_show.update(args.batch)
             # 计算指标
             val_loss /= index + 1
             precision = tp_all / (tp_all + fp_all + 1e-6)
@@ -332,6 +337,7 @@ class train_class:
             true_cls = torch.argmax(label[:, 5:], dim=1)
             tp = 0
             for index, target in enumerate(label):
+                target = target.to(pred.device)
                 iou_all = self.iou(pred, target.unsqueeze(0))
                 screen_tp = torch.where((iou_all > iou_threshold) & (pred_cls == true_cls[index]), True, False)
                 tp += min(len(pred[screen_tp]), 1)  # 一个标签只有一个预测值
