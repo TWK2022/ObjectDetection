@@ -243,7 +243,6 @@ class train_class:
                 self.model_dict['epoch_finished'] = epoch
                 self.model_dict['optimizer_state_dict'] = self.optimizer.state_dict()
                 self.model_dict['ema_update'] = self.ema.update_total if args.ema else self.model_dict['ema_update']
-                self.model_dict['class'] = self.data_dict['class']
                 self.model_dict['train_loss'] = train_loss
                 self.model_dict['val_loss'] = val_loss
                 self.model_dict['val_precision'] = precision
@@ -381,7 +380,6 @@ class loss_class():
             self.class_loss = torch.nn.CrossEntropyLoss()
 
     def __call__(self, pred, screen_list, label_expend):
-        pred[:, :, 4:] = torch.log(pred[:, :, 4:] / (1 - pred[:, :, 4:]))  # 逆sigmoid
         pred_need = []  # 有标签对应的区域
         confidence_label = torch.full_like(pred[:, :, 4], self.label_smooth, device=pred.device)  # 置信度标签
         for index, (pred_, screen) in enumerate(zip(pred, screen_list)):
@@ -511,13 +509,13 @@ class torch_dataset(torch.utils.data.Dataset):
         self.mosaic_hsv = 0.5  # 垂直翻转概率
         self.mosaic_screen = 10  # 增强后框的w,h不能小于mosaic_screen
         # 每个位置的预测范围(模型原始输出通常在+-4之前，sigmoid后约为0.01-0.99)
-        range_floor = [torch.full((1, self.output_layer[_], self.output_size[_], self.output_size[_], 5), -4,
+        range_floor = [torch.full((1, self.output_layer[_], self.output_size[_], self.output_size[_], 4), -4,
                                   dtype=torch.float32) for _ in range(len(self.output_size))]  # 输出下限
         range_upper = [torch.full_like(_, 4) for _ in range_floor]  # 输出上限
         with torch.no_grad():
             model_decode = decode(args)
-            self.range_floor = model_decode(range_floor)[0]  # 预测下限
-            self.range_upper = model_decode(range_upper)[0]  # 预测上限
+            self.range_floor = model_decode(range_floor)[0]  # 边框预测下限
+            self.range_upper = model_decode(range_upper)[0]  # 边框预测上限
 
     def __len__(self):
         return len(self.data)

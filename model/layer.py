@@ -276,7 +276,7 @@ class decode(torch.nn.Module):  # (cx,cy,w,h,confidence...)原始输出->(cx,cy,
         x_decode = []
         for index, layer in enumerate(x):
             # 中心坐标[0-1]->[-0.5-1.5]->[-0.5*stride-1.5*stride]
-            layer = self.sigmoid(layer)  # 归一化
+            layer[..., 0:4] = self.sigmoid(layer[..., 0:4])  # 边框归一化
             new_layer = layer.clone()  # 防止inplace丢失梯度
             new_layer[..., 0] = (2 * layer[..., 0] - 0.5 + grid[index]) * self.stride[index]
             new_layer[..., 1] = (2 * layer[..., 1] - 0.5 + grid[index].unsqueeze(1)) * self.stride[index]
@@ -297,7 +297,9 @@ class deploy(torch.nn.Module):
     def __init__(self, model):
         super().__init__()
         self.model = model
+        self.sigmoid = torch.nn.Sigmoid()  # 置信度和类别归一化
 
     def forward(self, x):
         x = self.model(x)
+        x[..., 4:] = self.sigmoid(x[..., 4:])
         return x
