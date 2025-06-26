@@ -8,9 +8,8 @@ from train_class import train_class
 # ├── 数据集路径：data_path
 #     └── image：存放所有图片
 #     └── label：存放所有图片的标签，名称:图片名.txt，内容：(类别号 x_center y_center w h)相对图片的比例值
-#     └── train.txt：训练图片的路径(相对data_path下路径)
-#     └── val.txt：验证图片的路径(相对data_path下路径)
-#     └── class.txt：类别名称
+#     └── train.txt：训练图片和标签(相对data_path下路径)，内容:图片路径,标签路径
+#     └── val.txt：验证图片和标签(相对data_path下路径)，内容:图片路径,标签路径
 # -------------------------------------------------------------------------------------------------------------------- #
 # 分布式数据并行训练:
 # python -m torch.distributed.launch --master_port 9999 --nproc_per_node n run.py --distributed True

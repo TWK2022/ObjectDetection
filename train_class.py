@@ -112,24 +112,13 @@ class train_class:
 
     def data_load(self):
         args = self.args
-        # 训练集
+        # 训练集[[图片路径,标签路径]...]
         with open(f'{args.data_path}/train.txt', encoding='utf-8') as f:
-            train_list = [_.strip() for _ in f.readlines()]  # [图片路径,...]
-        train_list = [[f'{args.data_path}/{_}',
-                       f'{args.data_path}/label/{os.path.splitext(os.path.basename(_))[0]}.txt'] for _ in train_list]
-        # 验证集
+            train_list = [[f'{args.data_path}/{__}' for __ in _.strip().split(',')] for _ in f.readlines()]
+        # 验证集[[图片路径,标签路径]...]
         with open(f'{args.data_path}/val.txt', encoding='utf-8') as f:
-            val_list = [_.strip() for _ in f.readlines()]  # [图片路径,...]
-        val_list = [[f'{args.data_path}/{_}',
-                     f'{args.data_path}/label/{os.path.splitext(os.path.basename(_))[0]}.txt'] for _ in val_list]
-        # 类别
-        with open(f'{args.data_path}/class.txt', encoding='utf-8') as f:
-            class_list = [_.strip() for _ in f.readlines()]
-        data_dict = {
-            'train': train_list,
-            'val': val_list,
-            'class': class_list,
-        }
+            val_list = [[f'{args.data_path}/{__}' for __ in _.strip().split(',')] for _ in f.readlines()]
+        data_dict = {'train': train_list, 'val': val_list}
         return data_dict
 
     def dataloader_load(self):
@@ -549,7 +538,7 @@ class torch_dataset(torch.utils.data.Dataset):
                 image = np.resize(image.astype(np.uint8), (self.input_size, self.input_size, 3))
                 frame = None
         image = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_BGR2RGB)  # 转为RGB通道
-        # self._draw_image(image, frame)  # 画图检查
+        # self.draw_image(image, frame)  # 画图检查
         image = (torch.tensor(image, dtype=torch.float32) / 255).permute(2, 0, 1)
         if frame is None:
             label_screen = torch.tensor([], dtype=torch.int32)

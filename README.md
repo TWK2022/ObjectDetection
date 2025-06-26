@@ -5,13 +5,11 @@
 >pip install tqdm wandb opencv-python -i https://pypi.tuna.tsinghua.edu.cn/simple
 >```
 ### 2，数据格式
->(标准YOLO格式)  
 >├── 数据集路径：data_path  
 >&emsp; &emsp; └── image：存放所有图片  
 >&emsp; &emsp; └── label：存放所有图片的标签，名称:图片名.txt，内容:类别号 x_center y_center w h(x,y,w,h为相对图片的比例值)  
->&emsp; &emsp; └── train.txt：训练图片的绝对路径(或相对data_path下路径)  
->&emsp; &emsp; └── val.txt：验证图片的绝对路径(或相对data_path下路径)  
->&emsp; &emsp; └── class.txt：所有的类别名称  
+>&emsp; &emsp; └── train.txt：训练图片和标签(相对data_path下路径)，内容:图片路径,标签路径  
+>&emsp; &emsp; └── val.txt：验证图片和标签(相对data_path下路径)，内容:图片路径,标签路径
 ### 3，run.py
 >模型训练，argparse中有每个参数的说明
 ### 4，predict.py
