@@ -376,11 +376,12 @@ class loss_class():
         self.frame_loss = self.ciou  # 边框损失函数
         self.confidence_loss = focal_loss()  # 置信度损失函数
         if args.output_class == 1:  # 分类损失函数
-            self.class_loss = torch.nn.BCELoss()
+            self.class_loss = torch.nn.BCEWithLogitsLoss()
         else:
             self.class_loss = torch.nn.CrossEntropyLoss()
 
     def __call__(self, pred, screen_list, label_expend):
+        pred[:, :, 4:] = torch.log(pred[:, :, 4:] / (1 - pred[:, :, 4:]))  # 逆sigmoid
         pred_need = []  # 有标签对应的区域
         confidence_label = torch.full_like(pred[:, :, 4], self.label_smooth, device=pred.device)  # 置信度标签
         for index, (pred_, screen) in enumerate(zip(pred, screen_list)):
@@ -441,7 +442,7 @@ class focal_loss(torch.nn.Module):  # 聚焦损失
         self.scale = scale  # 整体提高置信度损失权重
 
     def forward(self, pred, label):
-        bce_loss = torch.nn.functional.binary_cross_entropy(pred, label, reduction='none')
+        bce_loss = torch.nn.functional.binary_cross_entropy_with_logits(pred, label, reduction='none')
         alpha = self.alpha * label + (1 - self.alpha) * (1 - label)
         loss = self.scale * torch.mean(alpha * (1 - torch.exp(-bce_loss)) ** self.gamma * bce_loss)
         return loss
