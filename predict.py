@@ -7,8 +7,6 @@ from model.layer import deploy
 
 # -------------------------------------------------------------------------------------------------------------------- #
 parser = argparse.ArgumentParser(description='|模型预测|')
-parser.add_argument('--model_path', default='best.pt', type=str, help='|模型位置|')
-parser.add_argument('--image_path', default='image/test.jpg', type=str, help='|图片位置|')
 parser.add_argument('--input_size', default=640, type=int, help='|模型输入图片大小|')
 parser.add_argument('--batch', default=1, type=int, help='|输入图片批量|')
 parser.add_argument('--device', default='cuda', type=str, help='|设备|')
@@ -22,7 +20,7 @@ args.float16 = True if torch.cuda.is_available() else False  # cpu使用float16�
 
 # -------------------------------------------------------------------------------------------------------------------- #
 class predict_class:
-    def __init__(self, args=args):
+    def __init__(self, model_path, args=args):
         self.device = args.device
         self.float16 = args.float16
         self.input_size = args.input_size
@@ -98,10 +96,12 @@ class predict_class:
 
 # -------------------------------------------------------------------------------------------------------------------- #
 if __name__ == '__main__':
-    model = predict_class()
-    image = cv2.imdecode(np.fromfile(args.image_path, dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片
+    image_path = 'image/test.jpg'
+    model_path = 'best.pt'
+    model = predict_class(model_path)
+    image = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片
     result = model.predict(image)
     if result is not None:
-        model.draw_image(image, result[:, 0:4], save_path=f'predict_{os.path.basename(args.image_path)}')
+        model.draw_image(image, result[:, 0:4], save_path=f'predict_{os.path.basename(image_path)}')
     else:
-        cv2.imwrite(f'predict_{os.path.basename(args.image_path)}', image)
+        cv2.imwrite(f'predict_{os.path.basename(image_path)}', image)
