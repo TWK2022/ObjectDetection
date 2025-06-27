@@ -7,7 +7,7 @@ import numpy as np
 # -------------------------------------------------------------------------------------------------------------------- #
 parser = argparse.ArgumentParser(description='|模型预测|')
 parser.add_argument('--model_path', default='best.onnx', type=str, help='|模型位置|')
-parser.add_argument('--image_dir', default='image', type=str, help='|图片文件夹位置|')
+parser.add_argument('--image_path', default='image/test.jpg', type=str, help='|图片位置|')
 parser.add_argument('--input_size', default=640, type=int, help='|模型输入图片大小|')
 parser.add_argument('--device', default='cpu', type=str, help='|设备|')
 parser.add_argument('--float16', default=True, type=bool, help='|数据类型|')
@@ -49,23 +49,13 @@ class predict_class:
             cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), color=(0, 255, 0), thickness=2)
         cv2.imwrite(save_path, image)
 
-    def predict(self, image_dir=args.image_dir):
-        image_name_list = sorted(os.listdir(image_dir))
-        image_path_list = [f'{image_dir}/{_}' for _ in image_name_list]
-        result = []
-        for path in image_path_list:
-            image = cv2.imdecode(np.fromfile(path, dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # 转为RGB通道
-            array = self.image_process(image)
-            output = self.model.run([self.output_name], {self.input_name: array})[0][0]
-            output = self.decode(output, image.shape)
-            if output is not None:
-                result.append(len(output))
-                self.draw_image(image, output[:, 0:4], save_path=f'predict_{os.path.basename(path)}')
-            else:
-                result.append(0)
-                cv2.imwrite(f'predict_{os.path.basename(path)}', image)
-        print(result)
+    def predict(self, image_path):
+        image = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # 转为RGB通道
+        array = self.image_process(image)
+        output = self.model.run([self.output_name], {self.input_name: array})[0][0]
+        output = self.decode(output, image.shape)
+        return output
 
     def image_process(self, image):
         image = cv2.resize(image, (self.input_size, self.input_size))
@@ -105,4 +95,9 @@ class predict_class:
 # -------------------------------------------------------------------------------------------------------------------- #
 if __name__ == '__main__':
     model = predict_class()
-    model.predict()
+    image = cv2.imdecode(np.fromfile(args.image_path, dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片
+    result = model.predict(image)
+    if result is not None:
+        model.draw_image(image, result[:, 0:4], save_path=f'predict_{os.path.basename(args.image_path)}')
+    else:
+        cv2.imwrite(f'predict_{os.path.basename(args.image_path)}', image)
