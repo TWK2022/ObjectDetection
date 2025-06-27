@@ -74,7 +74,7 @@ class train_class:
 
     @staticmethod
     def nms(pred, iou_threshold):  # 输入(batch,(x_min,y_min,w,h))真实坐标
-        score = pred[:, 4] * np.max(pred[:, 5:], axis=1)  # 综合置信度和类别筛选
+        score = pred[:, 4] * torch.max(pred[:, 5:], dim=1)  # 综合置信度和类别筛选
         pred[:, 2:4] = pred[:, 0:2] + pred[:, 2:4]  # (x_min,y_min,x_max,y_max)
         index = torchvision.ops.nms(pred[:, 0:4], score, 1 - iou_threshold)
         pred = pred[index]
