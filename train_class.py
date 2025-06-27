@@ -74,8 +74,9 @@ class train_class:
 
     @staticmethod
     def nms(pred, iou_threshold):  # 输入(batch,(x_min,y_min,w,h))真实坐标
+        score = pred[:, 4] * np.max(pred[:, 5:], axis=1)  # 综合置信度和类别筛选
         pred[:, 2:4] = pred[:, 0:2] + pred[:, 2:4]  # (x_min,y_min,x_max,y_max)
-        index = torchvision.ops.nms(pred[:, 0:4], pred[:, 4], 1 - iou_threshold)
+        index = torchvision.ops.nms(pred[:, 0:4], score, 1 - iou_threshold)
         pred = pred[index]
         pred[:, 2:4] = pred[:, 2:4] - pred[:, 0:2]  # (x_min,y_min,w,h)
         return pred
@@ -700,7 +701,11 @@ class torch_dataset(torch.utils.data.Dataset):
         shape = image.shape
         w0 = shape[1]
         h0 = shape[0]
-        if w0 == h0 == self.input_size:  # 不需要变形
+        if np.random.rand(1) > 0.5:  # 直接变形图片不填充
+            image = cv2.resize(image, (self.input_size, self.input_size))
+            frame *= self.input_size
+            return image, frame
+        elif w0 == h0 == self.input_size:  # 不需要变形
             frame *= self.input_size
             return image, frame
         else:
