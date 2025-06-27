@@ -98,8 +98,8 @@ class predict_class:
 if __name__ == '__main__':
     image_path = 'image/test.jpg'
     model_path = 'best.pt'
-    model = predict_class(model_path)
     image = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片
+    model = predict_class(model_path)
     result = model.predict(image)
     if result is not None:
         model.draw_image(image, result[:, 0:4], save_path=f'predict_{os.path.basename(image_path)}')
