@@ -446,7 +446,7 @@ class loss_class():
 
 
 class focal_loss(torch.nn.Module):  # 聚焦损失
-    def __init__(self, alpha=0.25, gamma=2, scale=200):
+    def __init__(self, alpha=0.5, gamma=2, scale=100):  # 增大alpha和gamma提高召回率
         super().__init__()
         self.alpha = alpha  # 增大更关注正样本
         self.gamma = gamma  # 增大更关注难样本
@@ -552,9 +552,10 @@ class torch_dataset(torch.utils.data.Dataset):
         image = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_BGR2RGB)  # 转为RGB通道
         # self.draw_image(image, frame)  # 画图检查
         image = (torch.tensor(image, dtype=torch.float32) / 255).permute(2, 0, 1)
-        if frame is None:
+        if frame is None or len(frame) == 0:
             label_screen = torch.tensor([], dtype=torch.int32)
             label_expend = torch.tensor([], dtype=torch.int32)
+            label = torch.tensor([], dtype=torch.int32)
             return image, label_screen, label_expend, label
         # 原始标签
         label_number = len(frame)  # 标签数量
@@ -621,8 +622,8 @@ class torch_dataset(torch.utils.data.Dataset):
             self.mosaic_probability = 0
 
     def _mosaic(self, index_mix):  # 马赛克增强，合并后w,h不能小于screen
-        x_center = int((torch.rand(1) * 0.4 + 0.3) * self.input_size)  # 0.3-0.7。四张图片合并的中心点
-        y_center = int((torch.rand(1) * 0.4 + 0.3) * self.input_size)  # 0.3-0.7。四张图片合并的中心点
+        x_center = int((np.random.rand(1) * 0.4 + 0.3) * self.input_size)  # 0.3-0.7。四张图片合并的中心点
+        y_center = int((np.random.rand(1) * 0.4 + 0.3) * self.input_size)  # 0.3-0.7。四张图片合并的中心点
         image_merge = np.full((self.input_size, self.input_size, 3), 128)  # 合并后的图片
         frame_all = []  # 记录边框真实坐标(cx,cy,w,h)
         cls_all = []  # 记录类别号
@@ -631,7 +632,7 @@ class torch_dataset(torch.utils.data.Dataset):
             with open(self.data[index][1], 'r', encoding='utf-8') as f:
                 label = np.array([_.strip().split() for _ in f.readlines()], dtype=np.float32)  # 相对坐标(类别号,cx,cy,w,h)
             # hsv通道变换
-            if torch.rand(1) < self.mosaic_hsv:
+            if np.random.rand(1) < self.mosaic_hsv:
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV).astype(np.float32)
                 image[:, :, 0] += np.random.rand(1) * 60 - 30  # -30到30
                 image[:, :, 1] += np.random.rand(1) * 60 - 30  # -30到30
@@ -639,7 +640,7 @@ class torch_dataset(torch.utils.data.Dataset):
                 image = np.clip(image, 0, 255).astype(np.uint8)
                 image = cv2.cvtColor(image, cv2.COLOR_HSV2BGR)
             # 垂直翻转
-            if torch.rand(1) < self.mosaic_flip:
+            if np.random.rand(1) < self.mosaic_flip:
                 image = cv2.flip(image, 1)  # 垂直翻转图片
                 label[:, 1] = 1 - label[:, 1]  # 坐标变换:cx=w-cx
             # 根据input_size缩放图片
@@ -648,8 +649,8 @@ class torch_dataset(torch.utils.data.Dataset):
             w = w * scale
             h = h * scale
             # 再随机缩放图片
-            scale_w = torch.rand(1) + 0.5  # 0.5-1.5
-            scale_h = 1 + torch.rand(1) * 0.5 if scale_w > 1 else 1 - torch.rand(1) * 0.5  # h与w同时放大和缩小
+            scale_w = np.random.rand(1) + 0.5  # 0.5-1.5
+            scale_h = 1 + np.random.rand(1) * 0.5 if scale_w > 1 else 1 - np.random.rand(1) * 0.5  # h与w同时放大和缩小
             w = int(w * scale_w)
             h = int(h * scale_h)
             image = cv2.resize(image, (w, h))
@@ -693,8 +694,6 @@ class torch_dataset(torch.utils.data.Dataset):
                                True, False)  # w,h不能小于screen
         frame_all = frame_all[screen_list]
         cls_all = cls_all[screen_list]
-        if len(frame_all) == 0:  # 没有标签
-            frame_all = None
         return image_merge, frame_all, cls_all
 
     def _resize(self, image, frame):  # 将图片四周填充变为正方形，frame输入输出都为[[cx,cy,w,h]...](相对原图片的比例值)
