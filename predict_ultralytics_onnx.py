@@ -6,7 +6,7 @@ import numpy as np
 
 # -------------------------------------------------------------------------------------------------------------------- #
 # ultralytics模型onnx预测
-# ultralytics模型导出：model.export(format="onnx", dynamic=True, simplify=True, half=True)
+# ultralytics模型导出：model.export(format='onnx', dynamic=True, simplify=True, half=True)
 # -------------------------------------------------------------------------------------------------------------------- #
 parser = argparse.ArgumentParser(description='|模型预测|')
 parser.add_argument('--input_size', default=640, type=int, help='|模型输入图片大小|')
@@ -51,7 +51,6 @@ class predict_class:
         cv2.imwrite(save_path, image)
 
     def predict(self, image):
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # 转为RGB通道
         array = self.image_process(image)
         output = self.model.run([self.output_name], {self.input_name: array})[0][0]
         output = self.decode(output.transpose(1, 0), image.shape)
@@ -95,6 +94,7 @@ if __name__ == '__main__':
     image_path = 'image/test.jpg'
     model_path = 'best.onnx'
     image = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # 转为RGB通道
     model = predict_class(model_path)
     result = model.predict(image)
     if result is not None:
