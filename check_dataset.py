@@ -17,9 +17,9 @@ class check_dataset_class:
         self.label_path = [f'{label_dir}/{os.path.splitext(os.path.basename(_))[0]}.txt' for _ in self.image_path]
 
     def check_dataset(self):
-        self.draw_image()
+        self.draw_frame()
 
-    def draw_image(self):
+    def draw_frame(self):
         index = 0
         image = cv2.imdecode(np.fromfile(self.image_path[index], dtype=np.uint8), cv2.IMREAD_COLOR)
         with open(self.label_path[index], 'r', encoding='utf-8') as f:

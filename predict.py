@@ -7,7 +7,7 @@ from model.layer import deploy
 
 # -------------------------------------------------------------------------------------------------------------------- #
 parser = argparse.ArgumentParser(description='|模型预测|')
-parser.add_argument('--input_size', default=640, type=int, help='|模型输入图片大小|')
+parser.add_argument('--input_size', default=640, type=int, help='|输入图片大小|')
 parser.add_argument('--batch', default=1, type=int, help='|输入图片批量|')
 parser.add_argument('--device', default='cuda', type=str, help='|设备|')
 parser.add_argument('--float16', default=True, type=bool, help='|数据类型|')
@@ -41,13 +41,13 @@ class predict_class:
         return intersection / union
 
     @staticmethod
-    def draw_image(image, frame_all, save_path='draw.jpg'):  # 画图(cx,cy,w,h)
+    def draw_frame(image, frame_all, save_path='draw.jpg'):  # 画图(cx,cy,w,h)
         image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
         frame_all[:, 0:2] = frame_all[:, 0:2] - frame_all[:, 2:4] / 2
         frame_all[:, 2:4] = frame_all[:, 0:2] + frame_all[:, 2:4]  # (x_min,y_min,x_max,y_max)
         for frame in frame_all:
             x1, y1, x2, y2 = frame[0:4]
-            cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), color=(0, 255, 0), thickness=2)
+            cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), color=(0, 255, 0), thickness=1)
         cv2.imwrite(save_path, image)
 
     def predict(self, image):
@@ -101,6 +101,6 @@ if __name__ == '__main__':
     model = predict_class(model_path)
     result = model.predict(image)
     if result is not None:
-        model.draw_image(image, result[:, 0:4], save_path=f'predict_{os.path.basename(image_path)}')
+        model.draw_frame(image, result[:, 0:4], save_path=f'predict_{os.path.basename(image_path)}')
     else:
         cv2.imwrite(f'predict_{os.path.basename(image_path)}', image)
