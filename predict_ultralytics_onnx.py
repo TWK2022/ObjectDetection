@@ -51,24 +51,24 @@ class predict_class:
         cv2.imwrite(save_path, image)
 
     def predict(self, image):
-        array = self.image_process(image)
+        array = self._image_process(image)
         output = self.model.run([self.output_name], {self.input_name: array})[0][0]
-        output = self.decode(output.transpose(1, 0), image.shape)
+        output = self._decode(output.transpose(1, 0), image.shape)
         return output
 
-    def image_process(self, image):
+    def _image_process(self, image):
         image = cv2.resize(image, (self.input_size, self.input_size))
         image = image.astype(dtype=np.float16 if self.float16 else np.float32)
         image = image / 255
         image = image[np.newaxis].transpose(0, 3, 1, 2)
         return image
 
-    def decode(self, pred, shape):  # (cx,cy,w,h)
+    def _decode(self, pred, shape):  # (cx,cy,w,h)
         pred = pred[np.max(pred[:, 4:], axis=1) > self.confidence_threshold]  # 筛选
         pred = pred[np.where((pred[:, 0] > 0) & (pred[:, 1] > 0))]  # 去除负值
         if len(pred) == 0:  # 没有预测值
             return None
-        pred = self.nms(pred)
+        pred = self._nms(pred)
         x_cale, y_scale = shape[1] / self.input_size, shape[0] / self.input_size
         pred[:, 0] *= x_cale
         pred[:, 1] *= y_scale
@@ -76,7 +76,7 @@ class predict_class:
         pred[:, 3] *= y_scale
         return pred
 
-    def nms(self, pred):  # (x_min,y_min,w,h)
+    def _nms(self, pred):  # (x_min,y_min,w,h)
         score = pred[:, 4] * np.max(pred[:, 5:], axis=1)  # 综合置信度和类别筛选
         pred = pred[np.argsort(score)[::-1]].astype(np.float32)  # 按置信度从大到小排序，提高精度防止数据溢出
         result = []

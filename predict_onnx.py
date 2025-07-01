@@ -23,7 +23,7 @@ class predict_class:
         self.confidence_threshold = args.confidence_threshold
         self.iou_threshold = args.iou_threshold
         provider = 'CUDAExecutionProvider' if args.device.lower() in ['gpu', 'cuda'] else 'CPUExecutionProvider'
-        self.model = onnxruntime.InferenceSession(args.model_path, providers=[provider])  # 加载模型和框架
+        self.model = onnxruntime.InferenceSession(model_path, providers=[provider])  # 加载模型和框架
         self.input_name = self.model.get_inputs()[0].name  # 获取输入名称
         self.output_name = self.model.get_outputs()[0].name  # 获取输出名称
 
@@ -47,28 +47,26 @@ class predict_class:
             cv2.rectangle(image, (int(x1), int(y1)), (int(x2), int(y2)), color=(0, 255, 0), thickness=2)
         cv2.imwrite(save_path, image)
 
-    def predict(self, image_path):
-        image = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # 转为RGB通道
-        array = self.image_process(image)
+    def predict(self, image):
+        array = self._image_process(image)
         output = self.model.run([self.output_name], {self.input_name: array})[0][0]
-        output = self.decode(output, image.shape)
+        output = self._decode(output, image.shape)
         return output
 
-    def image_process(self, image):
+    def _image_process(self, image):
         image = cv2.resize(image, (self.input_size, self.input_size))
         image = image.astype(dtype=np.float16 if self.float16 else np.float32)
         image = image / 255
         image = image[np.newaxis].transpose(0, 3, 1, 2)
         return image
 
-    def decode(self, pred, shape):  # (cx,cy,w,h)
+    def _decode(self, pred, shape):  # (cx,cy,w,h)
         pred[:, 0:2] = pred[:, 0:2] - pred[:, 2:4] / 2  # (x_min,y_min,w,h)
         pred = pred[pred[:, 4] > self.confidence_threshold]  # 置信度筛选
         pred = pred[np.where((pred[:, 0] > 0) & (pred[:, 1] > 0))]  # 去除负值
         if len(pred) == 0:  # 没有预测值
             return None
-        pred = self.nms(pred)  # (x_min,y_min,w,h)
+        pred = self._nms(pred)  # (x_min,y_min,w,h)
         pred[:, 0:2] = pred[:, 0:2] + pred[:, 2:4] / 2  # (cx,cy,w,h)
         x_cale, y_scale = shape[1] / self.input_size, shape[0] / self.input_size
         pred[:, 0] *= x_cale
@@ -77,7 +75,7 @@ class predict_class:
         pred[:, 3] *= y_scale
         return pred
 
-    def nms(self, pred):  # (x_min,y_min,w,h)
+    def _nms(self, pred):  # (x_min,y_min,w,h)
         score = pred[:, 4] * np.max(pred[:, 5:], axis=1)  # 综合置信度和类别筛选
         pred = pred[np.argsort(score)[::-1]].astype(np.float32)  # 按置信度从大到小排序，提高精度防止数据溢出
         result = []
@@ -95,6 +93,7 @@ if __name__ == '__main__':
     image_path = 'image/test.jpg'
     model_path = 'best.onnx'
     image = cv2.imdecode(np.fromfile(image_path, dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # 转为RGB通道
     model = predict_class(model_path)
     result = model.predict(image)
     if result is not None:
