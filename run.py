@@ -33,7 +33,7 @@ parser.add_argument('--save_best', default='best.pt', type=str, help='|保存最
 parser.add_argument('--input_size', default=640, type=int, help='|输入图片大小|')
 parser.add_argument('--output_class', default=5, type=int, help='|输出类别数|')
 parser.add_argument('--epoch', default=100, type=int, help='|训练总轮数(包含之前已训练轮数)|')
-parser.add_argument('--batch', default=1, type=int, help='|训练批量大小，分布式时为总批量|')
+parser.add_argument('--batch', default=64, type=int, help='|训练批量大小，分布式时为总批量|')
 parser.add_argument('--warmup_ratio', default=0.01, type=float, help='|预热训练步数占总步数比例，最少5步，基准为0.01|')
 parser.add_argument('--lr_start', default=0.001, type=float, help='|初始学习率，adam算法，批量小时要减小，基准为0.001|')
 parser.add_argument('--lr_end_ratio', default=0.1, type=float, help='|最终学习率=lr_end_ratio*lr_start，基准为0.01|')
