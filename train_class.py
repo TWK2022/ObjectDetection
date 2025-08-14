@@ -1,4 +1,5 @@
 import os
+import re
 import cv2
 import math
 import copy
@@ -114,12 +115,24 @@ class train_class:
 
     def data_load(self):
         args = self.args
-        # 训练集[[图片路径,标签路径]...]
+        regex = re.compile(r'(.*\..{3,4}) (.*)')
+        # 训练集
+        train_list = []
         with open(f'{args.data_path}/train.txt', encoding='utf-8') as f:
-            train_list = [[f'{args.data_path}/{__}' for __ in _.strip().split(',')] for _ in f.readlines()]
-        # 验证集[[图片路径,标签路径]...]
+            for line in f.readlines():
+                search = regex.search(line.strip())
+                image_path = search.group(1)
+                label_path = search.group(2)
+                train_list.append([image_path, label_path])  # [[图片路径,类别],...]
+        # 验证集
+        val_list = []
         with open(f'{args.data_path}/val.txt', encoding='utf-8') as f:
-            val_list = [[f'{args.data_path}/{__}' for __ in _.strip().split(',')] for _ in f.readlines()]
+            for line in f.readlines():
+                search = regex.search(line.strip())
+                image_path = search.group(1)
+                label_path = search.group(2)
+                val_list.append([image_path, label_path])  # [[图片路径,类别],...]
+        # 记录
         data_dict = {'train': train_list, 'val': val_list}
         return data_dict
 
@@ -303,6 +316,7 @@ class train_class:
                 tp_all += tp
                 fn_all += fn
                 fp_all += fp
+                # tqdm
                 if args.tqdm:
                     tqdm_show.set_postfix({'loss': loss_batch.item()})
                     tqdm_show.update(args.batch)
@@ -517,11 +531,8 @@ class torch_dataset(torch.utils.data.Dataset):
         self.output_class = args.output_class
         self.output_layer = args.output_layer
         self.label_smooth = args.label_smooth
-        self.mosaic = args.mosaic
-        self.mosaic_probability = 0
-        self.mosaic_flip = 0.5  # hsv通道随机变换概率
-        self.mosaic_hsv = 0.5  # 垂直翻转概率
-        self.mosaic_screen = 10  # 增强后框的w,h不能小于mosaic_screen
+        self.noise = args.noise
+        self.noise_probability = 0
         # 每个位置的预测范围(模型原始输出通常在+-4之前，sigmoid后约为0.01-0.99)
         range_floor = [torch.full((1, self.output_layer[_], self.output_size[_], self.output_size[_], 4), -4,
                                   dtype=torch.float32) for _ in range(len(self.output_size))]  # 输出下限
@@ -536,24 +547,22 @@ class torch_dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         # 图片和标签处理，边框坐标处理为真实的cx,cy,w,h(归一化、减均值、除以方差、调维度等在模型中完成)
-        if self.tag == 'train' and torch.rand(1) < self.mosaic_probability:
-            index_mix = torch.randperm(len(self.data))[0:4]
-            index_mix[0] = index
-            image, frame, cls_all = self._mosaic(index_mix)  # 马赛克增强、缩放和填充图片，相对坐标变为真实坐标(cx,cy,w,h)
-        else:
-            image = cv2.imdecode(np.fromfile(self.data[index][0], dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片
-            with open(self.data[index][1], 'r', encoding='utf-8') as f:
-                label = np.array([_.strip().split() for _ in f.readlines()], dtype=np.float32)  # 相对坐标(类别号,cx,cy,w,h)
-            if len(label) > 0:  # 有标签
-                image, frame = self._resize(image.astype(np.uint8), label[:, 1:])  # 缩放和填充图片，相对坐标(cx,cy,w,h)变为真实坐标
-                cls_all = label[:, 0]  # 类别号
-            else:
-                image = np.resize(image.astype(np.uint8), (self.input_size, self.input_size, 3))
-                frame = None
+        image = cv2.imdecode(np.fromfile(self.data[index][0], dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片
         image = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_BGR2RGB)  # 转为RGB通道
+        with open(self.data[index][1], 'r', encoding='utf-8') as f:
+            label = np.array([_.strip().split() for _ in f.readlines()], dtype=np.float32)  # 相对坐标(类别号,cx,cy,w,h)
+        if len(label) > 0:  # 有标签
+            image, frame = self._resize(image.astype(np.uint8), label[:, 1:])  # 缩放和填充图片，相对坐标(cx,cy,w,h)变为真实坐标
+            cls_all = label[:, 0]  # 类别号
+        else:
+            image = np.resize(image.astype(np.uint8), (self.input_size, self.input_size, 3))
+            frame = np.zeros((0,))
+            cls_all = np.zeros((0,))
+        if self.tag == 'train' and torch.rand(1) < self.noise_probability:
+            image, frame = self._noise(image, frame)
         # self.draw_image(image, frame)  # 画图检查
         image = (torch.tensor(image, dtype=torch.float32) / 255).permute(2, 0, 1)
-        if frame is None or len(frame) == 0:
+        if len(frame) == 0:  # 没有标签
             label_screen = torch.tensor([], dtype=torch.int32)
             label_expend = torch.tensor([], dtype=torch.int32)
             label = torch.tensor([], dtype=torch.int32)
@@ -618,11 +627,29 @@ class torch_dataset(torch.utils.data.Dataset):
 
     def epoch_update(self, epoch_now):  # 根据轮数进行调整
         if 0.1 * self.epoch_total < epoch_now < 0.9 * self.epoch_total:  # 开始和末尾不加噪
-            self.mosaic_probability = self.mosaic
+            self.noise_probability = self.noise
         else:
-            self.mosaic_probability = 0
+            self.noise_probability = 0
 
-    def _mosaic(self, index_mix):  # 马赛克增强，合并后w,h不能小于screen
+    def _noise(self, image, frame):
+        # 灰度图
+        image = np.min(image, axis=2)
+        image = np.stack([image, image, image], axis=2)
+        # 翻转
+        h, w, _ = image.shape
+        random_choice = np.random.choice([0, 1, 2, 3])
+        if random_choice == 1:
+            image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
+            frame = np.stack([h - frame[:, 1], frame[:, 0], frame[:, 3], frame[:, 2]], axis=1)
+        elif random_choice == 2:
+            image = cv2.rotate(image, cv2.ROTATE_180)
+            frame = np.stack([w - frame[:, 0], h - frame[:, 1], frame[:, 2], frame[:, 3]], axis=1)
+        elif random_choice == 3:
+            image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            frame = np.stack([frame[:, 1], w - frame[:, 0], frame[:, 3], frame[:, 2]], axis=1)
+        return image, frame
+
+    def _mosaic(self, index_mix, threshold=30):  # 马赛克增强，合并后w,h不能小于screen
         x_center = int((np.random.rand(1) * 0.4 + 0.3) * self.input_size)  # 0.3-0.7。四张图片合并的中心点
         y_center = int((np.random.rand(1) * 0.4 + 0.3) * self.input_size)  # 0.3-0.7。四张图片合并的中心点
         image_merge = np.full((self.input_size, self.input_size, 3), 128)  # 合并后的图片
@@ -630,10 +657,11 @@ class torch_dataset(torch.utils.data.Dataset):
         cls_all = []  # 记录类别号
         for i, index in enumerate(index_mix):
             image = cv2.imdecode(np.fromfile(self.data[index][0], dtype=np.uint8), cv2.IMREAD_COLOR)  # 读取图片
+            image = cv2.cvtColor(image.astype(np.uint8), cv2.COLOR_BGR2RGB)  # 转为RGB通道
             with open(self.data[index][1], 'r', encoding='utf-8') as f:
                 label = np.array([_.strip().split() for _ in f.readlines()], dtype=np.float32)  # 相对坐标(类别号,cx,cy,w,h)
             # hsv通道变换
-            if np.random.rand(1) < self.mosaic_hsv:
+            if np.random.rand(1) < 0.5:
                 image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV).astype(np.float32)
                 image[:, :, 0] += np.random.rand(1) * 60 - 30  # -30到30
                 image[:, :, 1] += np.random.rand(1) * 60 - 30  # -30到30
@@ -641,7 +669,7 @@ class torch_dataset(torch.utils.data.Dataset):
                 image = np.clip(image, 0, 255).astype(np.uint8)
                 image = cv2.cvtColor(image, cv2.COLOR_HSV2BGR)
             # 垂直翻转
-            if np.random.rand(1) < self.mosaic_flip:
+            if np.random.rand(1) < 0.5:
                 image = cv2.flip(image, 1)  # 垂直翻转图片
                 label[:, 1] = 1 - label[:, 1]  # 坐标变换:cx=w-cx
             # 根据input_size缩放图片
@@ -691,17 +719,15 @@ class torch_dataset(torch.utils.data.Dataset):
         frame_all = np.clip(frame_all, 0, self.input_size - 1)  # 压缩坐标到图片内
         frame_all[:, 2:4] = frame_all[:, 2:4] - frame_all[:, 0:2]
         frame_all[:, 0:2] = frame_all[:, 0:2] + frame_all[:, 2:4] / 2  # 真实坐标(cx,cy,w,h)
-        screen_list = np.where((frame_all[:, 2] > self.mosaic_screen) & (frame_all[:, 3] > self.mosaic_screen),
-                               True, False)  # w,h不能小于screen
+        screen_list = np.where((frame_all[:, 2] > threshold) & (frame_all[:, 3] > threshold),
+                               True, False)  # w,h不能小于threshold
         frame_all = frame_all[screen_list]
         cls_all = cls_all[screen_list]
         return image_merge, frame_all, cls_all
 
-    def _resize(self, image, frame):  # 将图片四周填充变为正方形，frame输入输出都为[[cx,cy,w,h]...](相对原图片的比例值)
-        shape = image.shape
-        w0 = shape[1]
-        h0 = shape[0]
-        if np.random.rand(1) > 0.5:  # 直接变形图片不填充
+    def _resize(self, image, frame, threshold=1):  # 将图片四周填充变为正方形，frame输入输出都为[[cx,cy,w,h]...](相对原图片的比例值)
+        h0, w0, _ = image.shape
+        if np.random.rand(1) <= threshold:  # 直接变形图片不填充
             image = cv2.resize(image, (self.input_size, self.input_size))
             frame *= self.input_size
             return image, frame

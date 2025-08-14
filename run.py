@@ -6,10 +6,10 @@ from train_class import train_class
 # -------------------------------------------------------------------------------------------------------------------- #
 # 数据格式
 # ├── 数据集路径：data_path
-#     └── image：存放所有图片
-#     └── label：存放所有图片的标签，名称:图片名.txt，内容：(类别号 x_center y_center w h)相对图片的比例值
-#     └── train.txt：训练图片和标签(相对data_path下路径)，内容:图片路径,标签路径
-#     └── val.txt：验证图片和标签(相对data_path下路径)，内容:图片路径,标签路径
+#     └── image：存放所有图片(train.txt路径)
+#     └── label：存放所有图片的标签(train.txt路径)。名称:图片名.txt，内容：(类别号 x_center y_center w h)相对图片的比例值
+#     └── train.txt：训练图片和标签(绝对路径)，内容:图片路径 标签路径
+#     └── val.txt：验证图片和标签(绝对路径)，内容:图片路径 标签路径
 # -------------------------------------------------------------------------------------------------------------------- #
 # 分布式数据并行训练:
 # python -m torch.distributed.launch --master_port 9999 --nproc_per_node n run.py --distributed True
@@ -31,7 +31,7 @@ parser.add_argument('--save_epoch', default=5, type=int, help='|每x轮和最后
 parser.add_argument('--save_path', default='last.pt', type=str, help='|保存模型|')
 parser.add_argument('--save_best', default='best.pt', type=str, help='|保存最佳模型|')
 parser.add_argument('--input_size', default=640, type=int, help='|输入图片大小|')
-parser.add_argument('--output_class', default=1, type=int, help='|输出类别数|')
+parser.add_argument('--output_class', default=5, type=int, help='|输出类别数|')
 parser.add_argument('--epoch', default=100, type=int, help='|训练总轮数(包含之前已训练轮数)|')
 parser.add_argument('--batch', default=1, type=int, help='|训练批量大小，分布式时为总批量|')
 parser.add_argument('--warmup_ratio', default=0.01, type=float, help='|预热训练步数占总步数比例，最少5步，基准为0.01|')
@@ -47,7 +47,7 @@ parser.add_argument('--ema', default=True, type=bool, help='|平均指数移动(
 parser.add_argument('--amp', default=False, type=bool, help='|混合float16精度训练，cpu时不可用，出现nan可能与gpu有关|')
 parser.add_argument('--distributed', default=False, type=bool, help='|单机多卡分布式训练，分布式训练时batch为总batch|')
 parser.add_argument('--local_rank', default=0, type=int, help='|分布式训练使用命令后会自动传入的参数|')
-parser.add_argument('--mosaic', default=0, type=float, help='|mosaic增强概率|')
+parser.add_argument('--noise', default=0.5, type=float, help='|训练数据加噪概率|')
 parser.add_argument('--label_smooth', default=0.01, type=float, help='|标签平滑|')
 parser.add_argument('--confidence_threshold', default=0.5, type=float, help='|置信度阈值|')
 parser.add_argument('--iou_threshold', default=0.5, type=float, help='|iou阈值|')
